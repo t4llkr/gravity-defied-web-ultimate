@@ -378,7 +378,8 @@ class GameCanvas {
     if (GameCanvas.flagAnimationTime > 229376) {
       GameCanvas.flagAnimationTime = 0;
     }
-    this.setColor(...VisualSettings.textRGB());
+    // стойка — чёрная, как в оригинале (не цвет текста)
+    this.setColor(0, 0, 0);
     this.drawLine(x, y, x, y + 32);
     this.drawSprite(this.graphics, this.startFlagAnimationTimeToSpriteNo[GameCanvas.flagAnimationTime >> 16], this.addDx(x), this.addDy(y) - 32);
   }
@@ -386,7 +387,8 @@ class GameCanvas {
     if (GameCanvas.flagAnimationTime > 229376) {
       GameCanvas.flagAnimationTime = 0;
     }
-    this.setColor(...VisualSettings.textRGB());
+    // стойка — чёрная, как в оригинале (не цвет текста)
+    this.setColor(0, 0, 0);
     this.drawLine(x, y, x, y + 32);
     this.drawSprite(this.graphics, this.finishFlagAnumationTimeToSpriteNo[GameCanvas.flagAnimationTime >> 16], this.addDx(x), this.addDy(y) - 32);
   }
