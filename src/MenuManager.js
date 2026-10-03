@@ -1,4 +1,4 @@
-import { VisualSettings, pickColor, pickFile, saveBgImage } from "./VisualSettings.js";
+import { VisualSettings, pickColor, pickFile, saveBgImage, clearBgImage } from "./VisualSettings.js";
 import { GameCanvas } from "./GameCanvas.js";
 import { GameMenu } from "./GameMenu.js";
 import { LevelLoader } from "./LevelLoader.js";
@@ -292,6 +292,7 @@ class MenuManager {
         this.fillModeSetting = new SettingsStringRender("Shading", VisualSettings.settings.fillMode === "gradient" ? 0 : 1, this, ["Smooth", "Steps"], true, this.micro, this.gameMenuVisuals, false);
         this.curtainSetting = new SettingsStringRender("Track curtain", VisualSettings.settings.curtainEnabled ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
         this.taskBgImage = new TimerOrMotoPartOrMenuElem("BG image", null, this);
+        this.taskRemoveBg = new TimerOrMotoPartOrMenuElem("Remove BG image", null, this);
         this.bgModeSetting = new SettingsStringRender("BG mode", VisualSettings.settings.bgImageMode === "fill" ? 0 : VisualSettings.settings.bgImageMode === "fit" ? 1 : 2, this, ["Fill", "Fit", "Tile"], false, this.micro, this.gameMenuVisuals, false);
         this.showBgSetting = new SettingsStringRender("Show image", VisualSettings.settings.showBgImage ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
         this.gameMenuVisuals?.addMenuElement(this.taskLineColor);
@@ -310,8 +311,8 @@ class MenuManager {
         this.gameMenuMain?.addMenuElement(this.taskPlayMenu);
         this.gameMenuMain?.addMenuElement(this.taskOptions);
         this.gameMenuMain?.addMenuElement(this.taskHelp);
-        this.gameMenuMain?.addMenuElement(this.taskLevelPacks);
         this.gameMenuMain?.addMenuElement(this.taskVisuals);
+        this.gameMenuMain?.addMenuElement(this.taskLevelPacks);
         this.gameMenuMain?.addMenuElement(this.taskSkins);
         this.gameMenuMain?.addMenuElement(this.taskAbout);
         this.gameMenuMain?.addMenuElement(this.settingStringExitGame);
@@ -434,6 +435,8 @@ class MenuManager {
         this.gameMenuIngame?.addMenuElement(this.settingStringContinue);
         this.gameMenuIngame?.addMenuElement(this.restartTrackAction);
         this.gameMenuIngame?.addMenuElement(this.taskOptions);
+        this.gameMenuIngame?.addMenuElement(this.taskVisuals);
+        this.gameMenuIngame?.addMenuElement(this.taskSkins);
         this.gameMenuIngame?.addMenuElement(this.taskHelp);
         this.gameMenuIngame?.addMenuElement(this.settingStringPlayMenu);
         this.finishOkAction = new SettingsStringRender("Ok", 0, this, [], false, this.micro, this.gameMenuMain, true);
@@ -718,6 +721,7 @@ class MenuManager {
     // ищем тот же инстанс; если элемент исчез, зажимаем индекс в диапазон
     const prevIdx = menu.getSelectedIndex();
     const prevEl = prevIdx >= 0 && prevIdx < menu.vector.length ? menu.vector[prevIdx] : null;
+    const prevFirstVisible = menu.firstVisibleIndex || 0;
     menu.clearVector();
     menu.addMenuElement(this.taskLineColor);
     menu.addMenuElement(this.taskTextColor);
@@ -733,13 +737,31 @@ class MenuManager {
     if (hasImage) {
       menu.addMenuElement(this.bgModeSetting);
       menu.addMenuElement(this.showBgSetting);
+      menu.addMenuElement(this.taskRemoveBg);
     }
     menu.addMenuElement(this.settingStringBack);
     if (prevEl !== null) {
       const idx = menu.vector.indexOf(prevEl);
-      menu.scrollToSelection(idx >= 0 ? idx : Math.min(prevIdx, menu.vector.length - 1));
+      menu.selectedIndex = idx >= 0 ? idx : Math.min(prevIdx, menu.vector.length - 1);
     } else if (prevIdx >= 0) {
-      menu.scrollToSelection(Math.min(prevIdx, menu.vector.length - 1));
+      menu.selectedIndex = Math.min(prevIdx, menu.vector.length - 1);
+    }
+    // восстановить окно прокрутки как было (без скачка к выделенному/вверх),
+    // выделение гарантированно оставляем видимым
+    const count = menu.visibleItemCount;
+    menu.firstVisibleIndex = Math.min(prevFirstVisible, Math.max(0, menu.vector.length - count));
+    menu.lastVisibleIndex = menu.firstVisibleIndex + count - 1;
+    if (menu.lastVisibleIndex > menu.vector.length - 1) {
+      menu.lastVisibleIndex = menu.vector.length - 1;
+    }
+    if (menu.selectedIndex >= 0 && menu.selectedIndex < menu.firstVisibleIndex) {
+      const d = menu.firstVisibleIndex - menu.selectedIndex;
+      menu.firstVisibleIndex = menu.selectedIndex;
+      menu.lastVisibleIndex -= d;
+    } else if (menu.selectedIndex > menu.lastVisibleIndex) {
+      const d = menu.selectedIndex - menu.lastVisibleIndex;
+      menu.lastVisibleIndex = menu.selectedIndex;
+      menu.firstVisibleIndex += d;
     }
   }
   openMenu(gm, preserveSelection) {
@@ -1047,11 +1069,34 @@ class MenuManager {
         try {
           await saveBgImage(file);
           await VisualSettings.loadBgImageFromStorage();
+          // свежезагруженный фон показываем сразу (например, после Remove BG image)
+          VisualSettings.settings.showBgImage = true;
           VisualSettings.save();
+          // появились настройки фона — обновить меню сразу, без перезахода
+          this.rebuildVisualsMenu();
         } catch {
           this.showAlert("BG image", "Failed to load the image.", null);
         }
       });
+      return;
+    }
+    if (menuElement === this.taskRemoveBg) {
+      (async () => {
+        try {
+          await clearBgImage();
+        } catch {
+        }
+        VisualSettings.bgImage = null;
+        VisualSettings.bgGif = null;
+        if (VisualSettings.bgImageEl !== null) {
+          VisualSettings.bgImageEl.remove();
+        }
+        VisualSettings.bgImageUrl = null;
+        VisualSettings.bgImageEl = null;
+        VisualSettings.settings.showBgImage = false;
+        VisualSettings.save();
+        this.rebuildVisualsMenu();
+      })();
       return;
     }
     if (menuElement === this.bgModeSetting) {

@@ -56,19 +56,28 @@ export class VisualSettings {
       // только для присоединённых к документу элементов
       img.style.cssText = "position:fixed;left:-10000px;top:0;width:1px;height:1px;pointer-events:none;";
       document.body.appendChild(img);
-      img.onload = () => {
-        // URL НЕ отзываем: revoke "морозит" анимацию GIF у живого изображения
-        if (this.bgImageUrl !== null) {
-          URL.revokeObjectURL(this.bgImageUrl);
-        }
-        if (this.bgImageEl !== null && this.bgImageEl !== img) {
-          this.bgImageEl.remove();
-        }
-        this.bgImage = img;
-        this.bgImageUrl = url;
-        this.bgImageEl = img;
-      };
-      img.src = url;
+      // ждём реальной готовности картинки: вызывающий код (напр. пересборка
+      // меню Visuals) полагается, что bgImage уже установлен при resolve
+      await new Promise((resolve) => {
+        img.onload = () => {
+          // URL НЕ отзываем: revoke "морозит" анимацию GIF у живого изображения
+          if (this.bgImageUrl !== null) {
+            URL.revokeObjectURL(this.bgImageUrl);
+          }
+          if (this.bgImageEl !== null && this.bgImageEl !== img) {
+            this.bgImageEl.remove();
+          }
+          this.bgImage = img;
+          this.bgImageUrl = url;
+          this.bgImageEl = img;
+          resolve();
+        };
+        img.onerror = () => {
+          this.bgImage = null;
+          resolve();
+        };
+        img.src = url;
+      });
     } catch {
       this.bgImage = null;
     }
