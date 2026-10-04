@@ -1,4 +1,4 @@
-# Gravity Defied — pure JavaScript port
+# Gravity Defied Web Ultimate
 
 Browser port of the J2ME classic **Gravity Defied** (moto-trial racing). This repository is a community fork of [yurkagon/gravity-defied-web](https://github.com/yurkagon/gravity-defied-web), converted from TypeScript/Vite to plain JavaScript with **no build step and no Node.js toolchain**.
 
@@ -27,6 +27,11 @@ Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Serve
 - **Delete from Saved** (✕, hover): «Delete pack» keeps records (progress restores on re-download); «Delete with progress» also wipes the pack's record stores and progress — mirroring the in-game *Clear highscore* (RecordStore cache evicted, in-memory unlock state reset, deleted current pack falls back to Original levels).
 - **Per-pack progress** on Saved cards: three mini-bars (Easy / Medium / Hard) counted from track records; league of a record is its store-name prefix (`p<id>_<league><track>`, e.g. `p42_115` = league 1, track 15), exactly as the game numbers them.
 - **Per-pack persistence**: unlocked leagues/tracks, per-track records and last selection are stored per pack (`gd-progress-*`); the last active pack is restored on reload. If a pack's binary is missing from the cache, the game falls back to the original levels with a notice.
+
+## Menus
+
+- The in-game **pause menu** mirrors the main menu's comfort: **Options**, **Visuals** and **Skins** are all available mid-run (Visuals and Skins sit right under Options).
+- In the main menu, **Visuals** and **Level packs** sit next to each other — tune the look, then grab tracks to match it.
 
 ## Skins
 
@@ -60,7 +65,9 @@ A **Visuals** section in the main menu (all settings global, stored in `gd-visua
 - **Background color** — game backdrop.
 - **Track fill** — the track wall filled with a shade computed from each segment's slope; shading can be a **smooth gradient** or **fixed steps**; toggleable, own color.
 - **Track curtain** — a solid layer from the track surface to the bottom of the screen (toggleable; flat/no-perspective mode shows the curtain only).
-- **Background image** — any picture from your computer (fill / fit / tile modes; GIF support included — animated via a built-in decoder, since browsers do not animate GIFs drawn to canvas).
+- **Background image** — any picture from your computer (fill / fit / tile modes; GIF support included — animated via a built-in decoder, since browsers do not animate GIFs drawn to canvas), with removal once loaded.
+- **Two-tone track lines** — the surface line uses the main line color, while the far wall line and the surface→wall connectors are drawn in a derived darker shade, so the track keeps its classic depth at any custom color.
+- **Visual presets** — a dedicated **Presets** screen (transparent overlay over the paused game, so every change is visible live): save the current look under a name (with an overwrite warning on duplicate names), one-click apply, rename, delete (with confirmation), **import/export of single-preset JSON files** (name collisions offer *overwrite / rename imported / cancel*), **reset to default**, and **Back to last** — a one-step undo slot that captures the custom look the moment you first switch to a preset and restores it on demand.
 
 ## Save data
 
@@ -68,14 +75,14 @@ Everything is stored in the browser, **per origin** (`scheme + host + port`):
 
 | Storage | Contents |
 |---|---|
-| `localStorage` | per-track records (`p<id>_*` record stores), per-pack progress/selection (`gd-progress-*`), pack flags (`gd-pack-flags`), last active pack/skin, visual settings (`gd-visual`), game settings |
+| `localStorage` | per-track records (`p<id>_*` record stores), per-pack progress/selection (`gd-progress-*`), pack flags (`gd-pack-flags`), visual presets (`gd-visual-presets`) and the preset undo slot (`gd-visual-last`), last active pack/skin, visual settings (`gd-visual`), game settings |
 | `IndexedDB` | downloaded level packs (`gdpacks`), downloaded skins and background image (`gdvisual`) |
 
 Clearing site data wipes all progress, records and downloaded content.
 
 ## Changes from upstream
 
-Port date: 2026-09-23 → 2026-10-02; all 32 `.ts` modules transpiled to native ES modules. Highlights, in general terms:
+Port date: 2026-09-23 → 2026-10-04; all 32 `.ts` modules transpiled to native ES modules. Highlights, in general terms:
 
 - **Runtime**: no bundler and no Node.js — native ES modules, Vite-isms replaced with standard web APIs, plus a zero-dependency Python static server (`server.py`).
 - **Stability**: fixed a startup hang (background raster drawn before load) and an infinite loop in the physics bisection (a bike falling out of the map froze the tab) by restoring the original algorithm's termination guard; settings/progress now flush on tab close.
