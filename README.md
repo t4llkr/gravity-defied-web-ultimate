@@ -20,7 +20,7 @@ Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Serve
 
 - **Two catalogs**: **gdmod** (gdmod.ru) and **GDTR** (gdtr.net) — separate tabs in the gallery, one flat namespace (`gdtr` ids are offset by 1 000 000 internally, so caches, records and progress never collide between sources).
 - **Pack gallery** (DOM overlay, mouse-driven): three tabs — **gdmod**, **GDTR**, **Saved** — with client-side paging (50/page) over the full local catalog. Catalog cards show name, levels (`a/b/c`), downloads (gdmod only) and date; the active pack has a green border, a fully completed one blue.
-- **Sorting** is a row of toggle buttons (click to activate, click again to flip direction): date / downloads / tracks / name / author (gdmod also had originality — removed); Saved additionally sorts by **% completed**, saved date, name, tracks, source.
+- **Sorting** is a row of toggle buttons (click to activate, click again to flip direction): date / downloads / tracks / name / author; Saved additionally sorts by **% completed**, saved date, name, tracks, source.
 - **Search** by name works in every tab.
 - **Hide downloaded** toggle on catalog tabs (hidden packs are not pinned to any page).
 - **"Impossible" flag** (⚠, hover): marks a pack with a red border — works on any card, click does not load the pack, state persists (`gd-pack-flags`).
