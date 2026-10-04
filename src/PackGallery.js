@@ -1,7 +1,7 @@
 // Галерея левелпаков: вкладки gdmods / GDTR / Saved. Полностью локально —
 // метаданные из data/*.json, файлы из data/*.zip (LocalArchive через PackManager).
 // Синяя рамка карточки = 100% прохождения (все треки пройдены по рекордам).
-import { PACK_SOURCES } from "./PackManager.js";
+import { PACK_SOURCES, countCompletedPerDifficulty } from "./PackManager.js";
 
 const LETTERS = ["E", "M", "H"];
 const PAGE = 50;
@@ -20,44 +20,6 @@ export function closePackGallery() {
     activePackGallery();
     activePackGallery = null;
   }
-}
-
-// Прогресс по сложностям: сколько треков пройдено.
-// Имя хранилища рекорда формируется игрой как packPrefix + лига + трек
-// (склейка без разделителя: "p42_115" = лига 1, трек 15; оригинал: "015").
-// Лига — первая цифра суффикса; трек может быть любым (у больших паков "2693").
-function countCompletedPerDifficulty(packId) {
-  const storagePrefix = "gravity_defied_record_store:";
-  const packPrefix = "p" + packId + "_";
-  const counts = [0, 0, 0, 0];
-  try {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const k = window.localStorage.key(i);
-      if (!k || !k.startsWith(storagePrefix)) {
-        continue;
-      }
-      const key = k.slice(storagePrefix.length);
-      let suffix;
-      if (packId === 0) {
-        suffix = key;
-      } else {
-        if (!key.startsWith(packPrefix)) {
-          continue;
-        }
-        suffix = key.slice(packPrefix.length);
-      }
-      if (!/^[0-9]{2,}$/.test(suffix)) {
-        continue;
-      }
-      const league = suffix.charCodeAt(0) - 48;
-      if (league < 0 || league > 3) {
-        continue;
-      }
-      counts[league]++;
-    }
-  } catch {
-  }
-  return counts;
 }
 
 function recordHasData(packId) {
@@ -86,7 +48,7 @@ export function openPackGallery(menuManager, packMenu) {
   const pm = packMenu.packManager;
 
   // ---- состояние UI (вкладка/сортировки/тоггл — персистентно) ----
-  let uiState = { tab: "gdmods", sorts: {}, hideDl: {}, pages: {}, query: {} };
+  let uiState = { tab: "gdmods", sorts: {}, hideDl: {}, hide100: {}, hideImp: {}, pages: {}, query: {} };
   try {
     const s = window.localStorage.getItem(UI_KEY);
     if (s) {
@@ -130,17 +92,27 @@ export function openPackGallery(menuManager, packMenu) {
   } catch {
   }
   const isFlagged = (id) => !!packFlags[id];
+  const saveFlags = () => {
+    try {
+      window.localStorage.setItem(FLAGS_KEY, JSON.stringify(packFlags));
+    } catch {
+    }
+  };
   const toggleFlag = (id) => {
     if (packFlags[id]) {
       delete packFlags[id];
     } else {
       packFlags[id] = 1;
     }
-    try {
-      window.localStorage.setItem(FLAGS_KEY, JSON.stringify(packFlags));
-    } catch {
-    }
+    saveFlags();
     render();
+  };
+  // ленивая чистка: 100%-пак не может быть "непроходимым" — удаляем такую запись
+  const purgeFlagIfCompleted = (id, doneAll) => {
+    if (doneAll && packFlags[id]) {
+      delete packFlags[id];
+      saveFlags();
+    }
   };
 
   const overlay = document.createElement("div");
@@ -241,6 +213,26 @@ export function openPackGallery(menuManager, packMenu) {
   hideLabel.appendChild(hideChk);
   hideLabel.appendChild(document.createTextNode("Hide downloaded"));
 
+  const mkHideToggle = (key, text) => {
+    const label = document.createElement("label");
+    label.style.cssText = "color:#aaa;font-size:13px;display:flex;align-items:center;gap:6px;";
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.onchange = () => {
+      uiState[key][uiState.tab] = chk.checked;
+      saveUiState();
+      if (uiState.tab !== "saved") {
+        setPage(1);
+      }
+      render();
+    };
+    label.appendChild(chk);
+    label.appendChild(document.createTextNode(text));
+    return { label, chk };
+  };
+  const hide100 = mkHideToggle("hide100", "Hide 100%");
+  const hideImp = mkHideToggle("hideImp", "Hide impossible");
+
   // поисковая строка — во всех вкладках
   const searchWrap = document.createElement("label");
   searchWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin-left:auto;";
@@ -257,7 +249,7 @@ export function openPackGallery(menuManager, packMenu) {
     render();
   };
   searchWrap.appendChild(searchInput);
-  controls.append(sortBar, hideLabel, searchWrap);
+  controls.append(sortBar, hideLabel, hide100.label, hideImp.label, searchWrap);
 
   const setTabs = () => {
     for (const [id, b] of Object.entries(tabs)) {
@@ -280,6 +272,10 @@ export function openPackGallery(menuManager, packMenu) {
     const isCatalog = uiState.tab !== "saved";
     hideLabel.style.display = isCatalog ? "flex" : "none";
     hideChk.checked = !!uiState.hideDl[uiState.tab];
+    hide100.label.style.display = "flex";
+    hide100.chk.checked = !!uiState.hide100[uiState.tab];
+    hideImp.label.style.display = "flex";
+    hideImp.chk.checked = !!uiState.hideImp[uiState.tab];
   };
 
   // ---- рендер helpers (как в прежней версии) ----
@@ -499,8 +495,9 @@ export function openPackGallery(menuManager, packMenu) {
   // showSource — только вкладка Saved: источник строкой мета над автором + удаление
   const savedCard = (meta, currentId, metaAtBottom = false, showSource = false) => {
     const p = progressOf(meta);
+    purgeFlagIfCompleted(meta.id, p.doneAll);
     let state = currentId === meta.id ? "current" : p.doneAll ? "completed" : "";
-    if (isFlagged(meta.id)) {
+    if (state === "" && isFlagged(meta.id)) {
       state = "failed";
     }
     const srcLabel = PACK_SOURCES[meta.source] || meta.source || "";
@@ -510,7 +507,7 @@ export function openPackGallery(menuManager, packMenu) {
     return card(meta.name, null, authorLine, state, async () => {
       await packMenu.onCachedPackSelected({ id: meta.id, name: meta.name, author: meta.author, levels: "", mrgSize: "", hasGdlvl: false });
       render();
-    }, "", "", p.rows, metaAtBottom, { id: meta.id },
+    }, "", "", p.rows, metaAtBottom, p.doneAll ? null : { id: meta.id },
       showSource ? async () => {
         const mode = await confirmDeletePack(meta.name);
         if (mode) {
@@ -541,9 +538,17 @@ export function openPackGallery(menuManager, packMenu) {
     pager.style.cssText = "display:flex;gap:14px;align-items:center;justify-content:center;padding:14px;";
     body.appendChild(pager);
     status.textContent = "Loading...";
+    const currentId = menuManager.currentPackId;
     let data;
     try {
-      data = await pm.catalogPage(source, currentPage(), PAGE, { sort: currentSort(), hideDownloaded: hideChk.checked, query: uiState.query[uiState.tab] || "" });
+      data = await pm.catalogPage(source, currentPage(), PAGE, {
+        sort: currentSort(),
+        hideDownloaded: hideChk.checked,
+        hideCompleted: hide100.chk.checked,
+        hideImpossible: hideImp.chk.checked,
+        currentId,
+        query: uiState.query[uiState.tab] || "",
+      });
     } catch (e) {
       console.error("PackGallery: catalog load failed:", e);
       status.textContent = "Failed to load local catalog (data/" + (source === "gdtr" ? "packs_gdtr" : "packs_gdmod") + ".*): " + (e && e.message ? e.message : e);
@@ -556,7 +561,6 @@ export function openPackGallery(menuManager, packMenu) {
     status.textContent = items.length === 0
       ? "No packs here yet."
       : `Page ${page}/${totalPages} — ${items.length} packs` + (totalItems !== items.length ? ` of ${totalItems}` : "");
-    const currentId = menuManager.currentPackId;
     for (const it of items) {
       if (it.downloaded) {
         // скачанный пак в каталоге = карточка Saved (синяя рамка при 100%)
@@ -566,7 +570,13 @@ export function openPackGallery(menuManager, packMenu) {
         g.appendChild(savedCard(meta, currentId, true));
         continue;
       }
-      const borderState = isFlagged(it.id) ? "failed" : currentId === it.id ? "current" : "";
+      const done = countCompletedPerDifficulty(it.id);
+      const b = it.levelsBreakdown;
+      const doneAll = Array.isArray(b) && b.length === 3 && b.every((n, i) => n > 0 && done[i] >= n);
+      purgeFlagIfCompleted(it.id, doneAll);
+      // приоритет рамок: текущий (зелёная) > пройден (синяя) > невозможен (красная) —
+      // активный пак никогда не выглядит "непроходимым"
+      const borderState = currentId === it.id ? "current" : doneAll ? "completed" : isFlagged(it.id) ? "failed" : "";
       const subParts = [it.levels];
       if (it.downloads != null) {
         subParts.push(it.downloads + " dl");
@@ -595,7 +605,7 @@ export function openPackGallery(menuManager, packMenu) {
         if (ok) {
           toast("Saved! Find it in the Saved tab");
         }
-      }, "", busy ? "Downloading..." : "", null, true, { id: it.id }));
+      }, "", busy ? "Downloading..." : "", null, true, doneAll ? null : { id: it.id }));
     }
     pager.append(
       mkBtn("◀ Prev", () => { if (page > 1) { setPage(page - 1); renderCatalog(); } }, page <= 1),
@@ -638,6 +648,13 @@ export function openPackGallery(menuManager, packMenu) {
     const q = (uiState.query[uiState.tab] || "").trim().toLowerCase();
     if (q) {
       saved = saved.filter((m) => (m.name || "").toLowerCase().includes(q));
+    }
+    const curId = menuManager.currentPackId;
+    if (hide100.chk.checked) {
+      saved = saved.filter((m) => m.id === curId || !progressOf(m).doneAll);
+    }
+    if (hideImp.chk.checked) {
+      saved = saved.filter((m) => m.id === curId || !isFlagged(m.id));
     }
     // сортировка saved: любой тип в обе стороны
     const m = /^(.*)_(asc|desc)$/.exec(sort) || ["", "saved", "desc"];

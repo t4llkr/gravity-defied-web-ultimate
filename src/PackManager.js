@@ -65,6 +65,43 @@ const SORTS = {
   source_asc: (a, b) => ((a.source || "") + (a.name || "")).localeCompare((b.source || "") + (b.name || "")),
 };
 
+// Прогресс по сложностям: сколько треков пройдено. Имя хранилища рекорда —
+// packPrefix + лига + трек, склейка без разделителя ("p42_115" = лига 1, трек 15);
+// лига = первая цифра суффикса. Дублируется в PackGallery через импорт.
+export function countCompletedPerDifficulty(packId) {
+  const storagePrefix = "gravity_defied_record_store:";
+  const packPrefix = "p" + packId + "_";
+  const counts = [0, 0, 0, 0];
+  try {
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (!k || !k.startsWith(storagePrefix)) {
+        continue;
+      }
+      const key = k.slice(storagePrefix.length);
+      let suffix;
+      if (packId === 0) {
+        suffix = key;
+      } else {
+        if (!key.startsWith(packPrefix)) {
+          continue;
+        }
+        suffix = key.slice(packPrefix.length);
+      }
+      if (!/^[0-9]{2,}$/.test(suffix)) {
+        continue;
+      }
+      const league = suffix.charCodeAt(0) - 48;
+      if (league < 0 || league > 3) {
+        continue;
+      }
+      counts[league]++;
+    }
+  } catch {
+  }
+  return counts;
+}
+
 export class PackManager {
   constructor() {
     this.cache = new MRGCache();
@@ -139,15 +176,31 @@ export class PackManager {
   }
 
   // ---- выборка для PackGallery: сортировка на полном массиве, потом страница ----
-  async catalogPage(source, uiPage, uiPerPage, { sort = "date_desc", hideDownloaded = false, query = "" } = {}) {
+  async catalogPage(source, uiPage, uiPerPage, { sort = "date_desc", hideDownloaded = false, hideCompleted = false, hideImpossible = false, currentId = null, query = "" } = {}) {
     const all = await this._catalog(source);
     const cmp = SORTS[sort] || SORTS.date_desc;
     const q = query.trim().toLowerCase();
+    let flags = {};
+    try {
+      flags = JSON.parse(window.localStorage.getItem("gd-pack-flags") || "{}");
+    } catch {
+    }
     const cached = new Map((await this.getCachedPacks()).map((m) => [m.id, m]));
     const decorated = [];
     for (const it of all) {
+      // текущий пак — контекст: фильтры его не скрывают (зелёная рамка всегда на месте)
+      const isCurrent = currentId !== null && it.id === currentId;
       const meta = cached.get(it.id);
-      if (hideDownloaded && meta) {
+      if (!isCurrent && hideDownloaded && meta) {
+        continue;
+      }
+      const done = countCompletedPerDifficulty(it.id);
+      const b = it.levelsBreakdown;
+      const doneAll = Array.isArray(b) && b.length === 3 && b.every((n, i) => n > 0 && done[i] >= n);
+      if (!isCurrent && hideCompleted && doneAll) {
+        continue;
+      }
+      if (!isCurrent && hideImpossible && flags[it.id]) {
         continue;
       }
       if (q && !(it.name || "").toLowerCase().includes(q)) {
