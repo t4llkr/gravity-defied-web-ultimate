@@ -205,6 +205,33 @@ class GameLevel {
   const fillOn = withFill && VisualSettings.settings.fillEnabled;
     const curtainOn = VisualSettings.settings.curtainEnabled;
     if (fillOn || curtainOn) {
+      // Кэш готовых путей: при неподвижном байке геометрия и камера не меняются,
+      // иначе каждый кадр пересоздавались бы тысячи массивов квадов + Path2D
+      // (утечка/нагрузка на GC и Skia). Ключ — всё, от чего зависит результат.
+      if (!(gameCanvas.width > 0) || !(gameCanvas.height2 > 0)) {
+        // канвас ещё не отлейаутился (размер 0/NaN) — рисовать слой некуда
+        gameCanvas.setColor(...VisualSettings.lineRGB());
+        return;
+      }
+      const cbRGB = VisualSettings.fillRGB();
+      // квантование поглощает микродрожание камеры/байка (меньше клиентской геометрии -> тот же результат)
+      const key = [
+        xF16 >> 6, yF16 >> 6, lineNo, this.pointsCount,
+        this.pointPositions[0][0], this.pointPositions[0][1],
+        gameCanvas.dx >> 6, gameCanvas.dy >> 6, gameCanvas.width, gameCanvas.height2,
+        fillOn ? 1 : 0, curtainOn ? 1 : 0,
+        cbRGB[0], cbRGB[1], cbRGB[2],
+        VisualSettings.settings.fillMode,
+      ].join("|");
+      if (this._fillCache && this._fillCache.key === key) {
+        // один блит готового слоя вместо растеризации всех путей заново
+        if (this._fillCache.canvas.width > 0 && this._fillCache.canvas.height > 0) {
+          gameCanvas.graphics.ctx.drawImage(this._fillCache.canvas, 0, 0);
+        }
+        gameCanvas.setColor(...VisualSettings.lineRGB());
+        return;
+      }
+      const builtPaths = [];
       const bottomY = gameCanvas.addDy(0) - (gameCanvas.height2 + 100);
       const curtainQuads = [];
       const fillBuckets = new Map();
@@ -246,16 +273,27 @@ class GameLevel {
           break;
         }
       }
+      const off = document.createElement("canvas");
+      off.width = gameCanvas.width;
+      off.height = gameCanvas.height2;
+      const offCtx = off.getContext("2d");
       if (curtainQuads.length !== 0) {
         const cb = VisualSettings.fillRGB();
-        gameCanvas.setColor(cb[0], cb[1], cb[2]);
-        gameCanvas.fillPolygonPath(gameCanvas.buildPolygonPath(curtainQuads));
+        const path = gameCanvas.buildPolygonPath(curtainQuads);
+        offCtx.fillStyle = "rgb(" + cb[0] + "," + cb[1] + "," + cb[2] + ")";
+        offCtx.fill(path);
+        builtPaths.push({ rgb: cb, path });
       }
       for (const bucket of fillBuckets.values()) {
         const fb = VisualSettings.fillRGB();
-        gameCanvas.setColor(Math.min(255, fb[0] * bucket.shade | 0), Math.min(255, fb[1] * bucket.shade | 0), Math.min(255, fb[2] * bucket.shade | 0));
-        gameCanvas.fillPolygonPath(gameCanvas.buildPolygonPath(bucket.quads));
+        const rgb = [Math.min(255, fb[0] * bucket.shade | 0), Math.min(255, fb[1] * bucket.shade | 0), Math.min(255, fb[2] * bucket.shade | 0)];
+        const path = gameCanvas.buildPolygonPath(bucket.quads);
+        offCtx.fillStyle = "rgb(" + rgb[0] + "," + rgb[1] + "," + rgb[2] + ")";
+        offCtx.fill(path);
+        builtPaths.push({ rgb, path });
       }
+      gameCanvas.graphics.ctx.drawImage(off, 0, 0);
+      this._fillCache = { key, canvas: off, paths: builtPaths };
       gameCanvas.setColor(...VisualSettings.lineRGB());
     }
   }
@@ -317,6 +355,7 @@ class GameLevel {
     }
   }
   load(inStream) {
+    this._fillCache = null;
     this.init();
     const c = inStream.readInt8();
     if (c === 50) {
