@@ -84,7 +84,7 @@ Clearing site data wipes all progress, records and downloaded content.
 
 Port date: 2026-09-23 → 2026-10-04; all 32 `.ts` modules transpiled to native ES modules. Highlights, in general terms:
 
-- **Runtime**: no bundler and no Node.js — native ES modules, Vite-isms replaced with standard web APIs, plus a zero-dependency Python static server (`server.py`).
+- **Runtime**: no bundler and no Node.js — native ES modules, Vite-isms replaced with standard web APIs.
 - **Stability**: fixed a startup hang (background raster drawn before load) and an infinite loop in the physics bisection (a bike falling out of the map froze the tab) by restoring the original algorithm's termination guard; settings/progress now flush on tab close.
 - **Level packs / skins / visuals**: the subsystems described above, with batched canvas paths so the effects cost nothing at 60 fps.
 
