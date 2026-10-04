@@ -568,7 +568,10 @@ class GameCanvas {
   }
   paint(g) {
     this.beginFrame();
-    if (Micro.isInGameMenu && this.menuManager !== null) {
+    // открыт оверлей пресетов: вместо меню рисуем игровой кадр —
+    // изменения визуала видны сразу за полупрозрачной панелью
+    const presetsOpen = window.__gdPresetsOpen === true;
+    if (Micro.isInGameMenu && this.menuManager !== null && (!presetsOpen || this.menuManager.gameLevel === null)) {
       this.menuManager.renderCurrentMenu(g);
       return;
     }

@@ -1,4 +1,5 @@
 import { VisualSettings, pickColor, pickFile, saveBgImage, clearBgImage } from "./VisualSettings.js";
+import { openPresetsOverlay } from "./VisualPresets.js";
 import { GameCanvas } from "./GameCanvas.js";
 import { GameMenu } from "./GameMenu.js";
 import { LevelLoader } from "./LevelLoader.js";
@@ -293,6 +294,7 @@ class MenuManager {
         this.curtainSetting = new SettingsStringRender("Track curtain", VisualSettings.settings.curtainEnabled ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
         this.taskBgImage = new TimerOrMotoPartOrMenuElem("BG image", null, this);
         this.taskRemoveBg = new TimerOrMotoPartOrMenuElem("Remove BG image", null, this);
+        this.taskPresets = new TimerOrMotoPartOrMenuElem("Presets", null, this);
         this.bgModeSetting = new SettingsStringRender("BG mode", VisualSettings.settings.bgImageMode === "fill" ? 0 : VisualSettings.settings.bgImageMode === "fit" ? 1 : 2, this, ["Fill", "Fit", "Tile"], false, this.micro, this.gameMenuVisuals, false);
         this.showBgSetting = new SettingsStringRender("Show image", VisualSettings.settings.showBgImage ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
         this.gameMenuVisuals?.addMenuElement(this.taskLineColor);
@@ -739,6 +741,7 @@ class MenuManager {
       menu.addMenuElement(this.showBgSetting);
       menu.addMenuElement(this.taskRemoveBg);
     }
+    menu.addMenuElement(this.taskPresets);
     menu.addMenuElement(this.settingStringBack);
     if (prevEl !== null) {
       const idx = menu.vector.indexOf(prevEl);
@@ -1078,6 +1081,10 @@ class MenuManager {
           this.showAlert("BG image", "Failed to load the image.", null);
         }
       });
+      return;
+    }
+    if (menuElement === this.taskPresets) {
+      openPresetsOverlay();
       return;
     }
     if (menuElement === this.taskRemoveBg) {

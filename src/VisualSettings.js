@@ -1,6 +1,7 @@
 // Настройки визуала (глобальные). Хранение: localStorage, ключ "gd-visual".
 export class VisualSettings {
-  static settings = {
+  // дефолтный визуал (для сброса и пресетов) — источник истины один
+  static VISUAL_DEFAULTS = {
     lineColor: "#00ff00",
     bgColor: "#ffffff",
     fillEnabled: false,
@@ -11,6 +12,10 @@ export class VisualSettings {
     bgImageMode: "fill",
     showBgImage: true
   };
+  static settings = JSON.parse(JSON.stringify(VisualSettings.VISUAL_DEFAULTS));
+  static defaultSettings() {
+    return JSON.parse(JSON.stringify(VisualSettings.VISUAL_DEFAULTS));
+  }
   static bgImage = null;
   static bgImageUrl = null;
   static bgImageEl = null;
