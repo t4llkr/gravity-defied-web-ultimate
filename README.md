@@ -2,8 +2,6 @@
 
 Browser port of the J2ME classic **Gravity Defied** (moto-trial racing). This repository is a community fork of [yurkagon/gravity-defied-web](https://github.com/yurkagon/gravity-defied-web), converted from TypeScript/Vite to plain JavaScript with **no build step and no Node.js toolchain**.
 
-Beyond the port itself, the game has been extended with major features the original web version did not have: **level packs** (now from two community archives), **skins** and **visual customization** — **fully offline**: all content is served as static files from `data/`, no proxies, no workers, no runtime scraping.
-
 ## Running locally
 
 No build step: serve the repository root with any static file server and open it in a browser.
