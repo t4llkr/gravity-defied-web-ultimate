@@ -247,6 +247,13 @@ class MenuManager {
         } else {
           this.leagueNames = this.leagueNamesAll4;
         }
+        // список селекктора лиг должен повторять leagueNames: 325cc виден
+        // только при анлоке (иначе после разблокировки в другом паке он
+        // оставался в списке навсегда)
+        if (this.settingsStringLeague) {
+          this.settingsStringLeague.setOptionsList(this.leagueNames);
+          this.settingsStringLeague.setAvailableOptions(this.availableLeagues);
+        }
         this.highscoreLeagueIndex = this.selectedLeagueIndex;
         return;
       case 4: {
@@ -1325,6 +1332,9 @@ class MenuManager {
       this.unlockedTracksByLevel[1] = 0;
       this.unlockedTracksByLevel[2] = -1;
     }
+    // список лиг должен соответствовать прогрессу пака: 325cc виден только при анлоке
+    this.leagueNames = this.availableLeagues < 3 ? ["100cc", "175cc", "220cc"] : this.leagueNamesAll4;
+    this.settingsStringLeague?.setOptionsList(this.leagueNames);
     this.settingsStringLeague?.setAvailableOptions(this.availableLeagues);
     this.settingStringLevel?.setAvailableOptions(this.maxAvailableLevel);
     this.settingsStringLeague?.setAvailableOptions(this.availableLeagues);
