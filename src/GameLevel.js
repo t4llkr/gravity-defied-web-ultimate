@@ -218,7 +218,9 @@ class GameLevel {
       const key = [
         xF16 >> 6, yF16 >> 6, lineNo, this.pointsCount,
         this.pointPositions[0][0], this.pointPositions[0][1],
-        gameCanvas.dx >> 6, gameCanvas.dy >> 6, gameCanvas.width, gameCanvas.height2,
+        // dx/dy — целые пиксели экрана: только точное совпадение, иначе при
+        // look-ahead (раскачка камеры в авариях) слой уезжает от линий
+        gameCanvas.dx, gameCanvas.dy, gameCanvas.width, gameCanvas.height2,
         fillOn ? 1 : 0, curtainOn ? 1 : 0,
         cbRGB[0], cbRGB[1], cbRGB[2],
         VisualSettings.settings.fillMode,

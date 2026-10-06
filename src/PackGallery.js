@@ -8,6 +8,12 @@ const PAGE = 50;
 const UI_KEY = "gd-catalog-ui";
 
 const wrapCss = "position:fixed;inset:0;z-index:500;background:rgba(10,10,12,0.94);overflow:auto;";
+// подсветка карточки, выбранной через "Random"
+{
+  const st = document.createElement("style");
+  st.textContent = "@keyframes gdRandomFlash{0%,100%{box-shadow:none}50%{box-shadow:0 0 0 3px #fa4,0 0 18px #fa4}}.gd-random-flash{animation:gdRandomFlash 0.6s ease-in-out 4}";
+  document.head.appendChild(st);
+}
 const btnCss = "background:#22242a;border:1px solid #444;color:#eee;padding:8px 14px;border-radius:6px;cursor:pointer;font-size:14px;";
 const tabCss = "background:#1b1d22;border:1px solid #3a3d45;color:#ccc;padding:8px 18px;border-radius:8px 8px 0 0;cursor:pointer;font-size:14px;";
 const tabActiveCss = "background:#262a31;border-color:#5a5e68;color:#fff;font-weight:bold;";
@@ -235,7 +241,7 @@ export function openPackGallery(menuManager, packMenu) {
 
   // поисковая строка — во всех вкладках
   const searchWrap = document.createElement("label");
-  searchWrap.style.cssText = "display:flex;align-items:center;gap:6px;margin-left:auto;";
+  searchWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
   const searchInput = document.createElement("input");
   searchInput.type = "search";
   searchInput.placeholder = "Search by name...";
@@ -249,7 +255,31 @@ export function openPackGallery(menuManager, packMenu) {
     render();
   };
   searchWrap.appendChild(searchInput);
-  controls.append(sortBar, hideLabel, hide100.label, hideImp.label, searchWrap);
+  // "Random": показать случайный несохранённый, возможный, непройденный пак
+  const randBtn = document.createElement("button");
+  randBtn.textContent = "🎲 Random";
+  // стиль как у кнопок сортировки; margin-left:auto прижимает связку
+  // "кнопка + поиск" к правому краю
+  randBtn.style.cssText = "background:#1b1d22;border:1px solid #3a3d45;color:#ccc;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-left:auto;";
+  randBtn.onclick = async () => {
+    const source = TAB_SOURCES[uiState.tab];
+    const q = uiState.query[uiState.tab] || "";
+    const item = await pm.randomPack(source, { query: q });
+    if (!item) {
+      toast("Nothing to pick — all saved, 100% or impossible");
+      return;
+    }
+    const page = await pm.packPageById(source, item.id, currentSort(), q, PAGE);
+    setPage(page);
+    await renderCatalog();
+    const el = body.querySelector('[data-pack-id="' + item.id + '"]');
+    if (el) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      el.classList.add("gd-random-flash");
+      setTimeout(() => el.classList.remove("gd-random-flash"), 2600);
+    }
+  };
+  controls.append(sortBar, hideLabel, hide100.label, hideImp.label, randBtn, searchWrap);
 
   const setTabs = () => {
     for (const [id, b] of Object.entries(tabs)) {
@@ -271,6 +301,7 @@ export function openPackGallery(menuManager, packMenu) {
     searchInput.value = uiState.query[uiState.tab] || "";
     const isCatalog = uiState.tab !== "saved";
     hideLabel.style.display = isCatalog ? "flex" : "none";
+    randBtn.style.display = isCatalog ? "" : "none";
     hideChk.checked = !!uiState.hideDl[uiState.tab];
     hide100.label.style.display = "flex";
     hide100.chk.checked = !!uiState.hide100[uiState.tab];
@@ -588,7 +619,7 @@ export function openPackGallery(menuManager, packMenu) {
       }
       const sub = subParts.filter(Boolean).join(" · ");
       const busy = busyId === it.id;
-      g.appendChild(card(it.name, sub, it.author, borderState, async () => {
+      const packCardEl = card(it.name, sub, it.author, borderState, async () => {
         if (busyId !== null) {
           return;
         }
@@ -605,7 +636,9 @@ export function openPackGallery(menuManager, packMenu) {
         if (ok) {
           toast("Saved! Find it in the Saved tab");
         }
-      }, "", busy ? "Downloading..." : "", null, true, doneAll ? null : { id: it.id }));
+      }, "", busy ? "Downloading..." : "", null, true, doneAll ? null : { id: it.id });
+      packCardEl.dataset.packId = String(it.id);
+      g.appendChild(packCardEl);
     }
     pager.append(
       mkBtn("◀ Prev", () => { if (page > 1) { setPage(page - 1); renderCatalog(); } }, page <= 1),

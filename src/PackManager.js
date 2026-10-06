@@ -230,6 +230,54 @@ export class PackManager {
   async isPackCached(id) {
     return this.cache.hasPack(id);
   }
+  // Случайный пак для кнопки "Random": исключены сохранённые, невозможные и 100%
+  async randomPack(source, { query = "" } = {}) {
+    const all = await this._catalog(source);
+    const q = query.trim().toLowerCase();
+    let flags = {};
+    try {
+      flags = JSON.parse(window.localStorage.getItem("gd-pack-flags") || "{}");
+    } catch {
+    }
+    const cached = new Set((await this.getCachedPacks()).map((m) => m.id));
+    const pool = [];
+    for (const it of all) {
+      if (cached.has(it.id)) {
+        continue;
+      }
+      if (flags[it.id]) {
+        continue;
+      }
+      const done = countCompletedPerDifficulty(it.id);
+      const b = it.levelsBreakdown;
+      if (Array.isArray(b) && b.length === 3 && b.every((n, i) => n > 0 && done[i] >= n)) {
+        continue;
+      }
+      if (q && !(it.name || "").toLowerCase().includes(q)) {
+        continue;
+      }
+      pool.push(it);
+    }
+    if (pool.length === 0) {
+      return null;
+    }
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  // Страница пака при текущей сортировке/поиске (hide-тогглы не учитываем —
+  // кандидат рандома им не подвержен по построению)
+  async packPageById(source, id, sort, query, perPage) {
+    const all = await this._catalog(source);
+    const cmp = SORTS[sort] || SORTS.date_desc;
+    const q = query.trim().toLowerCase();
+    const list = all.filter((it) => !q || (it.name || "").toLowerCase().includes(q)).sort(cmp);
+    const idx = list.findIndex((it) => it.id === id);
+    if (idx < 0) {
+      return 1;
+    }
+    return Math.floor(idx / perPage) + 1;
+  }
+
   async savedList() {
     const metas = await this.getCachedPacks();
     const out = [];
