@@ -486,6 +486,10 @@ class MenuManager {
     }
     this.recordManager.closeRecordStore();
     let availableLeagues = -1;
+    // монотонная разблокировка: прохождение более лёгкой лиги после сложной
+    // не должно закрывать уже открытые классы (сравнение с реальным максимумом,
+    // а не с локальной переменной, которая всегда -1)
+    const currentMaxLeague = this.settingsStringLeague.getMaxAvailableOptionPos();
     if (this.settingsStringTrack.getMaxAvailableOptionPos() >= this.settingsStringTrack.getCurrentOptionPos()) {
       this.settingsStringTrack.setAvailableOptions(
         this.settingsStringTrack.getCurrentOptionPos() + 1 < this.unlockedTracksByLevel[this.settingStringLevel.getCurrentOptionPos()] ? this.unlockedTracksByLevel[this.settingStringLevel.getCurrentOptionPos()] : this.settingsStringTrack.getCurrentOptionPos() + 1
@@ -496,23 +500,27 @@ class MenuManager {
       this.completedLastTrack = true;
       switch (this.settingStringLevel.getCurrentOptionPos()) {
         case 0:
-          if (availableLeagues < 1) {
+          if (currentMaxLeague < 1) {
             availableLeagues = 1;
             this.settingsStringLeague.setAvailableOptions(availableLeagues);
           }
           break;
         case 1:
-          if (availableLeagues < 2) {
+          if (currentMaxLeague < 2) {
             availableLeagues = 2;
             this.settingsStringLeague.setAvailableOptions(availableLeagues);
           }
           break;
         case 2:
-          if (availableLeagues < 3) {
+          if (currentMaxLeague < 3) {
             availableLeagues = 3;
             this.settingsStringLeague.setOptionsList(this.leagueNamesAll4);
             this.leagueNames = this.leagueNamesAll4;
             this.settingsStringLeague.setAvailableOptions(availableLeagues);
+          } else if (this.leagueNames !== this.leagueNamesAll4) {
+            // классы уже открыты, но список ещё короткий (переход со старого сейва)
+            this.settingsStringLeague.setOptionsList(this.leagueNamesAll4);
+            this.leagueNames = this.leagueNamesAll4;
           }
       }
       this.settingStringLevel.setAvailableOptions(this.settingStringLevel.getMaxAvailableOptionPos() + 1);

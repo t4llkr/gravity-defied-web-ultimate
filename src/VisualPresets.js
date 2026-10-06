@@ -210,6 +210,7 @@ export function openPresetsOverlay() {
   }
 
   const overlay = document.createElement("div");
+  overlay.className = "gd-presets-overlay";
   overlay.style.cssText = "position:fixed;inset:0;z-index:520;background:transparent;display:flex;";
   // клик мимо панели закрывает (фон прозрачный — игровой кадр полностью виден)
   overlay.onclick = (e) => {
