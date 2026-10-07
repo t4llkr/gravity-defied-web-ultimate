@@ -7,6 +7,7 @@ export class VisualSettings {
     fillEnabled: false,
     fillColor: "#008800",
     fillMode: "gradient",
+    hideLines: false,
     textColor: "#000000",
     curtainEnabled: false,
     bgImageMode: "fill",

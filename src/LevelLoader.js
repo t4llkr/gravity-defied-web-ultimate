@@ -180,6 +180,13 @@ class LevelLoader {
     if (this.gameLevel === null) {
       return;
     }
+    // скрытие линий (при fill) убирает и поверхность — иначе остаётся
+    // «тёмная линия трассы» поверх заливки
+    if (LevelLoader.isEnabledPerspective
+        && VisualSettings.settings.hideLines === true
+        && VisualSettings.settings.fillEnabled === true) {
+      return;
+    }
     // линия поверхности — основной цвет линий (в обоих режимах)
     const rgb = VisualSettings.lineRGB();
     canvas.setColor(...rgb);

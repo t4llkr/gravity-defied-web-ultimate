@@ -131,6 +131,8 @@ class GameLevel {
     var10 = divideF16(var10, var11 >> 1 >> 1);
     gameCanvas.setColor(...VisualSettings.lineRGB());
     this.renderTrackEffects(gameCanvas, xF16, yF16);
+    // скрытие линий — только при включённой заливке (иначе трасса "растворится")
+    const hideLines = VisualSettings.settings.hideLines === true && VisualSettings.settings.fillEnabled === true;
     while (lineNo < this.pointsCount - 1) {
       const var4 = var9;
       const var5 = var10;
@@ -139,22 +141,24 @@ class GameLevel {
       var11 = GamePhysics.getSmthLikeMaxAbs(var9, var10);
       var9 = divideF16(var9, var11 >> 1 >> 1);
       var10 = divideF16(var10, var11 >> 1 >> 1);
-      // нижняя (дальняя) линия стены — тёмный производный (верхняя — основной)
-      gameCanvas.setColor(...VisualSettings.lineRGBDark());
-      gameCanvas.drawLine(
-        this.pointPositions[lineNo][0] + var4 << 3 >> 16,
-        this.pointPositions[lineNo][1] + var5 << 3 >> 16,
-        this.pointPositions[lineNo + 1][0] + var9 << 3 >> 16,
-        this.pointPositions[lineNo + 1][1] + var10 << 3 >> 16
-      );
-      // коннектор поверхность→стена — тёмный производный оттенок
-      gameCanvas.setColor(...VisualSettings.lineRGBDark());
-      gameCanvas.drawLine(
-        this.pointPositions[lineNo][0] << 3 >> 16,
-        this.pointPositions[lineNo][1] << 3 >> 16,
-        this.pointPositions[lineNo][0] + var4 << 3 >> 16,
-        this.pointPositions[lineNo][1] + var5 << 3 >> 16
-      );
+      if (!hideLines) {
+        // нижняя (дальняя) линия стены — тёмный производный (верхняя — основной)
+        gameCanvas.setColor(...VisualSettings.lineRGBDark());
+        gameCanvas.drawLine(
+          this.pointPositions[lineNo][0] + var4 << 3 >> 16,
+          this.pointPositions[lineNo][1] + var5 << 3 >> 16,
+          this.pointPositions[lineNo + 1][0] + var9 << 3 >> 16,
+          this.pointPositions[lineNo + 1][1] + var10 << 3 >> 16
+        );
+        // коннектор поверхность→стена — тёмный производный оттенок
+        gameCanvas.setColor(...VisualSettings.lineRGBDark());
+        gameCanvas.drawLine(
+          this.pointPositions[lineNo][0] << 3 >> 16,
+          this.pointPositions[lineNo][1] << 3 >> 16,
+          this.pointPositions[lineNo][0] + var4 << 3 >> 16,
+          this.pointPositions[lineNo][1] + var5 << 3 >> 16
+        );
+      }
       if (lineNo > 1) {
         if (this.pointPositions[lineNo][0] > this.shadowStartXF16 && var7 === 0) {
           var7 = lineNo - 1;
@@ -182,13 +186,15 @@ class GameLevel {
       }
       ++lineNo;
     }
-    gameCanvas.setColor(...VisualSettings.lineRGBDark());
-    gameCanvas.drawLine(
-      this.pointPositions[this.pointsCount - 1][0] << 3 >> 16,
-      this.pointPositions[this.pointsCount - 1][1] << 3 >> 16,
-      this.pointPositions[this.pointsCount - 1][0] + var9 << 3 >> 16,
-      this.pointPositions[this.pointsCount - 1][1] + var10 << 3 >> 16
-    );
+    if (!hideLines) {
+      gameCanvas.setColor(...VisualSettings.lineRGBDark());
+      gameCanvas.drawLine(
+        this.pointPositions[this.pointsCount - 1][0] << 3 >> 16,
+        this.pointPositions[this.pointsCount - 1][1] << 3 >> 16,
+        this.pointPositions[this.pointsCount - 1][0] + var9 << 3 >> 16,
+        this.pointPositions[this.pointsCount - 1][1] + var10 << 3 >> 16
+      );
+    }
     gameCanvas.setColor(...VisualSettings.lineRGB());
     if (LevelLoader.isEnabledShadows) {
       this.renderShadow(gameCanvas, var7, var8);

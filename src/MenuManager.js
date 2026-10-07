@@ -297,6 +297,7 @@ class MenuManager {
         this.taskBgColor = new TimerOrMotoPartOrMenuElem("Background color", null, this);
         this.taskTextColor = new TimerOrMotoPartOrMenuElem("Text color", null, this);
         this.fillSetting = new SettingsStringRender("Track fill", VisualSettings.settings.fillEnabled ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
+        this.hideLinesSetting = new SettingsStringRender("Hide lines", VisualSettings.settings.hideLines ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
         this.taskFillColor = new TimerOrMotoPartOrMenuElem("Fill color", null, this);
         this.fillModeSetting = new SettingsStringRender("Shading", VisualSettings.settings.fillMode === "gradient" ? 0 : 1, this, ["Smooth", "Steps"], true, this.micro, this.gameMenuVisuals, false);
         this.curtainSetting = new SettingsStringRender("Track curtain", VisualSettings.settings.curtainEnabled ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
@@ -748,6 +749,9 @@ class MenuManager {
     if (VisualSettings.settings.fillEnabled) {
       menu.addMenuElement(this.taskFillColor);
       menu.addMenuElement(this.fillModeSetting);
+      // пересоздаём, чтобы пункт отражал актуальное состояние (в т.ч. автосброс)
+      this.hideLinesSetting = new SettingsStringRender("Hide lines", VisualSettings.settings.hideLines ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
+      menu.addMenuElement(this.hideLinesSetting);
     }
     menu.addMenuElement(this.curtainSetting);
     menu.addMenuElement(this.taskBgImage);
@@ -1075,9 +1079,23 @@ class MenuManager {
       return;
     }
     if (menuElement === this.fillSetting) {
-      VisualSettings.settings.fillEnabled = this.fillSetting.getCurrentOptionPos() === 0;
+      const fillNowOn = this.fillSetting.getCurrentOptionPos() === 0;
+      VisualSettings.settings.fillEnabled = fillNowOn;
+      if (!fillNowOn) {
+        // скрытие линий действует только с заливкой: выключая fill, запоминаем
+        // состояние hideLines и гасим его; при повторном включении — возвращаем
+        this._hideLinesBeforeFillOff = VisualSettings.settings.hideLines === true;
+        VisualSettings.settings.hideLines = false;
+      } else {
+        VisualSettings.settings.hideLines = this._hideLinesBeforeFillOff === true;
+      }
       VisualSettings.save();
       this.rebuildVisualsMenu();
+      return;
+    }
+    if (menuElement === this.hideLinesSetting) {
+      VisualSettings.settings.hideLines = this.hideLinesSetting.getCurrentOptionPos() === 0;
+      VisualSettings.save();
       return;
     }
     if (menuElement === this.fillModeSetting) {
