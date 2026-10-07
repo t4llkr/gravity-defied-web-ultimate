@@ -9,6 +9,8 @@ import { SkinManager } from "./SkinManager.js";
 import { openSkinGallery } from "./SkinGallery.js";
 import { openPackGallery } from "./PackGallery.js";
 const LEVELS_MRG_URL = new URL("./assets/levels.mrg", import.meta.url).href
+import { TouchControls } from "./TouchControls.js";
+
 async function startGravityDefiedApp(root) {
   VisualSettings.load();
   void VisualSettings.loadBgImageFromStorage();
@@ -25,6 +27,34 @@ async function startGravityDefiedApp(root) {
   micro.levelLoader = levelLoader;
   micro.gamePhysics = gamePhysics;
   micro.gameCanvas = gameCanvas;
+
+  const touchControls = new TouchControls({
+    onKeyPressed: (k) => { gameCanvas.keyPressed(k); render(); },
+    onKeyReleased: (k) => { gameCanvas.keyReleased(k); render(); },
+    onOk: () => {
+      gameCanvas.keyPressed(8);
+      gameCanvas.keyReleased(8);
+      render();
+    },
+    onBack: () => {
+      handleBack();
+      render();
+    },
+  });
+  root.appendChild(touchControls.element);
+
+  function isBackAvailable() {
+    return Micro.isInGameMenu
+      ? menuManager.getCurrentMenu()?.getParentMenu() != null
+      : gameCanvas.hasMenuButton();
+  }
+  function handleBack() {
+    if (Micro.isInGameMenu) {
+      gameCanvas.handleBackAction();
+    } else if (gameCanvas.hasMenuButton()) {
+      gameCanvas.openPauseMenu();
+    }
+  }
   window.__gd = { micro, menuManager };
   window.addEventListener("pagehide", () => menuManager.saveAndClose());
   micro.menuManager = menuManager;
@@ -71,6 +101,7 @@ async function startGravityDefiedApp(root) {
     gamePhysics.setMinimalScreenWH(Math.ceil((width < height ? width : height) / menuManager.getZoom()));
   }
   function render() {
+    touchControls.update(Micro.isInGameMenu, isBackAvailable());
     gameCanvas.paint(gameCanvas.getGraphics());
   }
   gameCanvas.setRepaintHandler(render);
