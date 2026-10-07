@@ -19,11 +19,12 @@ Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Serve
 ## Level packs
 
 - **Two catalogs**: **gdmod** (gdmod.ru) and **GDTR** (gdtr.net) — separate tabs in the gallery, one flat namespace (`gdtr` ids are offset by 1 000 000 internally, so caches, records and progress never collide between sources).
-- **Pack gallery** (DOM overlay, mouse-driven): three tabs — **gdmod**, **GDTR**, **Saved** — with client-side paging (50/page) over the full local catalog. Catalog cards show name, levels (`a/b/c`), downloads (gdmod only) and date; the active pack has a green border, a fully completed one blue.
+- **Pack gallery** (DOM overlay, mouse-driven): three tabs — **gdmod**, **GDTR**, **Saved** — with client-side paging (50/page) over the full local catalog. Catalog cards show name, levels (`a/b/c`), downloads (gdmod only) and date; the active pack has a green border, a fully completed one blue, an «impossible»-flagged one red. A soft-deleted pack that was completed keeps its blue border (completion lives in the records, not in the download), and a completed pack can not be flagged «impossible».
 - **Sorting** is a row of toggle buttons (click to activate, click again to flip direction): date / downloads / tracks / name / author; Saved additionally sorts by **% completed**, saved date, name, tracks, source.
 - **Search** by name works in every tab.
-- **Hide downloaded** toggle on catalog tabs (hidden packs are not pinned to any page).
-- **"Impossible" flag** (⚠, hover): marks a pack with a red border — works on any card, click does not load the pack, state persists (`gd-pack-flags`).
+- **Visibility toggles** on every tab: **Hide downloaded**, **Hide 100%** and **Hide impossible** (hidden packs are filtered out before paging — not pinned to any page). The current pack is never hidden: it stays visible at its sorted position while it is loaded.
+- **"Impossible" flag** (⚠, hover): marks a pack with a red border — click does not load the pack, state persists (`gd-pack-flags`).
+- **🎲 Random** (catalog tabs): jumps to a random pack and flashes it. The draw excludes downloaded, «impossible» and fully completed packs and respects the current search — a quick way to surface something new worth playing.
 - **Delete from Saved** (✕, hover): «Delete pack» keeps records (progress restores on re-download); «Delete with progress» also wipes the pack's record stores and progress — mirroring the in-game *Clear highscore* (RecordStore cache evicted, in-memory unlock state reset, deleted current pack falls back to Original levels).
 - **Per-pack progress** on Saved cards: three mini-bars (Easy / Medium / Hard) counted from track records; league of a record is its store-name prefix (`p<id>_<league><track>`, e.g. `p42_115` = league 1, track 15), exactly as the game numbers them.
 - **Per-pack persistence**: unlocked leagues/tracks, per-track records and last selection are stored per pack (`gd-progress-*`); the last active pack is restored on reload. If a pack's binary is missing from the cache, the game falls back to the original levels with a notice.
@@ -82,7 +83,7 @@ Clearing site data wipes all progress, records and downloaded content.
 
 ## Changes from upstream
 
-Port date: 2026-09-23 → 2026-10-04; all 32 `.ts` modules transpiled to native ES modules. Highlights, in general terms:
+Port date: 2026-09-23 → 2026-10-07; all 32 `.ts` modules transpiled to native ES modules. Highlights, in general terms:
 
 - **Runtime**: no bundler and no Node.js — native ES modules, Vite-isms replaced with standard web APIs.
 - **Stability**: fixed a startup hang (background raster drawn before load) and an infinite loop in the physics bisection (a bike falling out of the map froze the tab) by restoring the original algorithm's termination guard; settings/progress now flush on tab close.
