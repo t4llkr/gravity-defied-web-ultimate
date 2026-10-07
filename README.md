@@ -33,6 +33,7 @@ Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Serve
 
 - The in-game **pause menu** mirrors the main menu's comfort: **Options**, **Visuals** and **Skins** are all available mid-run (Visuals and Skins sit right under Options).
 - In the main menu, **Visuals** and **Level packs** sit next to each other — tune the look, then grab tracks to match it.
+- **In-game info toasts** — the text of game alerts («pack loaded», «complete more tracks to unlock…») appears as a popup at the top of the screen, not just in the browser console.
 
 ## Skins
 
@@ -68,6 +69,7 @@ A **Visuals** section in the main menu (all settings global, stored in `gd-visua
 - **Track curtain** — a solid layer from the track surface to the bottom of the screen (toggleable; flat/no-perspective mode shows the curtain only).
 - **Background image** — any picture from your computer (fill / fit / tile modes; GIF support included — animated via a built-in decoder, since browsers do not animate GIFs drawn to canvas), with removal once loaded.
 - **Two-tone track lines** — the surface line uses the main line color, while the far wall line and the surface→wall connectors are drawn in a derived darker shade, so the track keeps its classic depth at any custom color.
+- **Hide lines** (shown when Track fill is on) — hides every track line, leaving the pure filled shape (and curtain). Toggling Track fill off remembers the choice and restores it when fill comes back.
 - **Visual presets** — a dedicated **Presets** screen (transparent overlay over the paused game, so every change is visible live): save the current look under a name (with an overwrite warning on duplicate names), one-click apply, rename, delete (with confirmation), **import/export of single-preset JSON files** (name collisions offer *overwrite / rename imported / cancel*), **reset to default**, and **Back to last** — a one-step undo slot that captures the custom look the moment you first switch to a preset and restores it on demand.
 
 ## Save data
@@ -80,6 +82,15 @@ Everything is stored in the browser, **per origin** (`scheme + host + port`):
 | `IndexedDB` | downloaded level packs (`gdpacks`), downloaded skins and background image (`gdvisual`) |
 
 Clearing site data wipes all progress, records and downloaded content.
+
+## Backup
+
+**Options → Export backup / Import backup** moves *everything* between browsers or machines:
+
+- **localStorage** is dumped wholesale — every key: records, per-pack progress, flags, presets, settings (future settings are included automatically).
+- **Downloaded content is stored by reference**: packs and skins are saved as id lists, and on import the app re-fetches the binaries from its own `data/` (missing ids are skipped and reported, never fatal).
+- The **background image** is embedded as base64 — the only binary that exists nowhere but in your browser.
+- Import is a **full replace** (with an explicit confirmation) and finishes with a report toast — how many packs/skins were restored, what was missing — followed by a reload. Typical backup size: well under a few megabytes.
 
 ## Changes from upstream
 
