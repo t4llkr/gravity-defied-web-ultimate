@@ -28,20 +28,17 @@ async function startGravityDefiedApp(root) {
   micro.gamePhysics = gamePhysics;
   micro.gameCanvas = gameCanvas;
 
-  const touchControls = new TouchControls({
-    onKeyPressed: (k) => { gameCanvas.keyPressed(k); render(); },
-    onKeyReleased: (k) => { gameCanvas.keyReleased(k); render(); },
-    onOk: () => {
-      gameCanvas.keyPressed(8);
-      gameCanvas.keyReleased(8);
+  const touchControls = new TouchControls(root, {
+    keyPressed: (keyCode) => {
+      gameCanvas.keyPressed(keyCode);
       render();
     },
-    onBack: () => {
+    keyReleased: (keyCode) => gameCanvas.keyReleased(keyCode),
+    back: () => {
       handleBack();
       render();
     },
   });
-  root.appendChild(touchControls.element);
 
   function isBackAvailable() {
     return Micro.isInGameMenu
@@ -101,8 +98,8 @@ async function startGravityDefiedApp(root) {
     gamePhysics.setMinimalScreenWH(Math.ceil((width < height ? width : height) / menuManager.getZoom()));
   }
   function render() {
-    touchControls.update(Micro.isInGameMenu, isBackAvailable());
     gameCanvas.paint(gameCanvas.getGraphics());
+    touchControls.update(Micro.isInGameMenu, isBackAvailable());
   }
   gameCanvas.setRepaintHandler(render);
   function restart(var1) {
