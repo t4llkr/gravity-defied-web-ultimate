@@ -171,7 +171,23 @@ class GameCanvas {
     this.graphics.clipRect = null;
     this.ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    // зум: после очистки ставим масштаб — движок рисует в уменьшенный логический
+    // экран, браузер растягивает без сглаживания (как в оригинальном порте)
+    this.ctx.imageSmoothingEnabled = false;
+    this.ctx.setTransform(this.zoom ?? 1, 0, 0, this.zoom ?? 1, 0, 0);
     this.processTimers();
+  }
+
+  resize(width, height, zoom = 1) {
+    this.canvas.width = width;
+    this.canvas.height = height;
+    this.zoom = Math.max(1, Math.min(4, zoom | 0 || 1));
+    this.width = Math.max(1, Math.ceil(width / this.zoom));
+    this.height = this.height2 = Math.max(1, Math.ceil(height / this.zoom));
+  }
+
+  getZoom() {
+    return this.zoom ?? 1;
   }
   drawSprite(g, spriteNo, x, y) {
     g.setClip(x, y, GameCanvas.spriteSizeX[spriteNo], GameCanvas.spriteSizeY[spriteNo]);

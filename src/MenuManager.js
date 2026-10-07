@@ -128,6 +128,7 @@ class MenuManager {
       case 1:
         this.playerNameBytes = this.defaultInputString;
         this.toggleOptionNames = ["On", "Off"];
+    this.zoomNames = ["1x", "2x", "3x", "4x"];
         this.inputModeNames = ["Keyset 1", "Keyset 2", "Keyset 3"];
         this.recordManager = new RecordManager();
         this.lastFinishTime = -1;
@@ -355,6 +356,7 @@ class MenuManager {
         this.bikeSpriteSetting = new SettingsStringRender("Bike sprite", this.isDisabledBikeSprite, this, this.toggleOptionNames, true, this.micro, this.gameMenuOptions, false);
         this.inputSetting = new SettingsStringRender("Input", this.inputMode, this, this.inputModeNames, false, this.micro, this.gameMenuOptions, false);
         this.lookAheadSetting = new SettingsStringRender("Look ahead", this.isDisableLookAhead, this, this.toggleOptionNames, true, this.micro, this.gameMenuOptions, false);
+        this.zoomSetting = new SettingsStringRender("Zoom", this.readStoredValue(13, 0), this, this.zoomNames, false, this.micro, this.gameMenuOptions, false);
         this.clearHighscoreSetting = new TimerOrMotoPartOrMenuElem("Clear highscore", this.gameMenuConfirmClear, this);
         return;
       case 6:
@@ -364,6 +366,7 @@ class MenuManager {
         this.gameMenuOptions?.addMenuElement(this.bikeSpriteSetting);
         this.gameMenuOptions?.addMenuElement(this.inputSetting);
         this.gameMenuOptions?.addMenuElement(this.lookAheadSetting);
+        this.gameMenuOptions?.addMenuElement(this.zoomSetting);
         this.gameMenuOptions?.addMenuElement(this.clearHighscoreSetting);
         this.gameMenuOptions?.addMenuElement(this.taskExportBackup);
         this.gameMenuOptions?.addMenuElement(this.taskImportBackup);
@@ -590,6 +593,10 @@ class MenuManager {
   repaint() {
     this.micro.gameCanvas?.repaint();
   }
+  getZoom() {
+    return (this.zoomSetting?.getCurrentOptionPos() ?? 0) + 1;
+  }
+
   getCanvasHeight() {
     return this.micro.gameCanvas?.getHeight() ?? 0;
   }
@@ -878,6 +885,7 @@ class MenuManager {
     this.setValue(3, this.bikeSpriteSetting?.getCurrentOptionPos() ?? 0);
     this.setValue(14, this.inputSetting?.getCurrentOptionPos() ?? 0);
     this.setValue(4, this.lookAheadSetting?.getCurrentOptionPos() ?? 0);
+    this.setValue(13, this.zoomSetting?.getCurrentOptionPos() ?? 0);
     this.setValue(5, this.settingsStringLeague?.getMaxAvailableOptionPos() ?? 0);
     this.setValue(6, this.settingStringLevel?.getMaxAvailableOptionPos() ?? 0);
     this.setValue(10, this.settingStringLevel?.getCurrentOptionPos() ?? 0);
@@ -953,6 +961,10 @@ class MenuManager {
         this.inputSetting.setCurrentOptionPos(this.inputSetting.getCurrentOptionPos() + 1);
       }
       this.micro.gameCanvas?.setInputMode(this.inputSetting.getCurrentOptionPos());
+      return;
+    }
+    if (menuElement === this.zoomSetting) {
+      // значение уже продвинуло само меню при выборе — ручной цикл давал шаг 2
       return;
     }
     if (menuElement === this.lookAheadSetting) {
@@ -1434,6 +1446,7 @@ class MenuManager {
     this.driverSpriteSetting?.setCurrentOptionPos(0);
     this.bikeSpriteSetting?.setCurrentOptionPos(0);
     this.lookAheadSetting?.setCurrentOptionPos(0);
+        this.zoomSetting?.setCurrentOptionPos(0);
     this.settingsStringLeague?.setCurrentOptionPos(0);
     this.settingsStringLeague?.setAvailableOptions(0);
     this.settingStringLevel?.setCurrentOptionPos(0);

@@ -67,8 +67,8 @@ async function startGravityDefiedApp(root) {
       width = Math.max(width, Math.floor(window.visualViewport.width));
       height = Math.max(height, Math.floor(window.visualViewport.height));
     }
-    gameCanvas.resize(width, height);
-    gamePhysics.setMinimalScreenWH(width < height ? width : height);
+    gameCanvas.resize(width, height, menuManager.getZoom());
+    gamePhysics.setMinimalScreenWH(Math.ceil((width < height ? width : height) / menuManager.getZoom()));
   }
   function render() {
     gameCanvas.paint(gameCanvas.getGraphics());
@@ -209,6 +209,9 @@ async function startGravityDefiedApp(root) {
   restart(false);
   menuManager.showMenuScreen(0);
   function loop(now) {
+    if (menuManager.getZoom() !== gameCanvas.getZoom()) {
+      resize();
+    }
     if (Micro.isInGameMenu && !state.wasInGameMenu) {
       state.lastMenuStepMs = now;
     }
