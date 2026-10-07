@@ -398,9 +398,11 @@ export function openSkinGallery(skinManager, catalog) {
     const totalPages = Math.max(1, Math.ceil(filteredTotal / CATALOG_PAGE_SIZE));
     const page = Math.min(Math.max(1, uiState.catalogPage), totalPages);
     uiState.catalogPage = page;
+    const rangeFirst = items.length === 0 ? 0 : (page - 1) * CATALOG_PAGE_SIZE + 1;
+    const rangeLast = items.length === 0 ? 0 : (page - 1) * CATALOG_PAGE_SIZE + items.length;
     status.textContent = items.length === 0 && page === 1
       ? ((uiState.query[uiState.tab] || "").trim() ? "Nothing found." : "Failed to load catalog (data/skins.* missing?)")
-      : `Page ${page}/${totalPages} — ${items.length} skins`;
+      : `Page ${page}/${totalPages} — ${rangeFirst}–${rangeLast} of ${filteredTotal}`;
     for (const it of items) {
       const savedRec = savedRecs.get(it.id);
       const isCurrent = skinManager.currentId === it.id;

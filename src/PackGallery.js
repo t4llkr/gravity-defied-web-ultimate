@@ -589,9 +589,11 @@ export function openPackGallery(menuManager, packMenu) {
     const { items, totalItems, totalPages, page } = data;
     setPage(page);
     const hiddenCount = hideChk.checked ? 0 : null;
+    const rangeFirst = items.length === 0 ? 0 : (page - 1) * PAGE + 1;
+    const rangeLast = items.length === 0 ? 0 : (page - 1) * PAGE + items.length;
     status.textContent = items.length === 0
       ? "No packs here yet."
-      : `Page ${page}/${totalPages} — ${items.length} packs` + (totalItems !== items.length ? ` of ${totalItems}` : "");
+      : `Page ${page}/${totalPages} — ${rangeFirst}–${rangeLast} of ${totalItems}`;
     for (const it of items) {
       if (it.downloaded) {
         // скачанный пак в каталоге = карточка Saved (синяя рамка при 100%)
