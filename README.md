@@ -41,6 +41,15 @@ Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Serve
 - **Gallery** with Catalog / Saved tabs: sorting buttons (date / downloads / name / author; saved: date / name / size / author), search in all tabs, lazy thumbnails from `data/thumbs/` (see below), delete (✕) with confirmation — deleting the current skin auto-switches to Default.
 - The built-in **Default** skin is always available in Saved.
 
+## Backup
+
+**Options → Export backup / Import backup** moves *everything* between browsers or machines:
+
+- **localStorage** is dumped wholesale — every key: records, per-pack progress, flags, presets, settings (future settings are included automatically).
+- **Downloaded content is stored by reference**: packs and skins are saved as id lists, and on import the app re-fetches the binaries from its own `data/` (missing ids are skipped and reported, never fatal).
+- The **background image** is embedded as base64 — the only binary that exists nowhere but in your browser.
+- Import is a **full replace** (with an explicit confirmation) and finishes with a report toast — how many packs/skins were restored, what was missing — followed by a reload. Typical backup size: well under a few megabytes.
+
 ## Local data layout
 
 Everything the game needs is static content next to `index.html`:
@@ -82,15 +91,6 @@ Everything is stored in the browser, **per origin** (`scheme + host + port`):
 | `IndexedDB` | downloaded level packs (`gdpacks`), downloaded skins and background image (`gdvisual`) |
 
 Clearing site data wipes all progress, records and downloaded content.
-
-## Backup
-
-**Options → Export backup / Import backup** moves *everything* between browsers or machines:
-
-- **localStorage** is dumped wholesale — every key: records, per-pack progress, flags, presets, settings (future settings are included automatically).
-- **Downloaded content is stored by reference**: packs and skins are saved as id lists, and on import the app re-fetches the binaries from its own `data/` (missing ids are skipped and reported, never fatal).
-- The **background image** is embedded as base64 — the only binary that exists nowhere but in your browser.
-- Import is a **full replace** (with an explicit confirmation) and finishes with a report toast — how many packs/skins were restored, what was missing — followed by a reload. Typical backup size: well under a few megabytes.
 
 ## Changes from upstream
 
