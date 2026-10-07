@@ -1,5 +1,6 @@
 import { VisualSettings, pickColor, pickFile, saveBgImage, clearBgImage } from "./VisualSettings.js";
 import { openPresetsOverlay } from "./VisualPresets.js";
+import { showInfoToast } from "./InfoToast.js";
 import { GameCanvas } from "./GameCanvas.js";
 import { GameMenu } from "./GameMenu.js";
 import { LevelLoader } from "./LevelLoader.js";
@@ -900,6 +901,8 @@ class MenuManager {
       this.micro.gameCanvas?.scheduleGameTimerTask(title, 2e3);
     }
     console.info(alertText);
+    // текст алерта — ещё и попапом сверху (не только в консоль)
+    showInfoToast(title, alertText);
   }
   handleMenuSelection(menuElement) {
     if (menuElement === this.taskStart) {
