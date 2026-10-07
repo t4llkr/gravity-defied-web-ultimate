@@ -1,6 +1,7 @@
 import { VisualSettings, pickColor, pickFile, saveBgImage, clearBgImage } from "./VisualSettings.js";
 import { openPresetsOverlay } from "./VisualPresets.js";
 import { showInfoToast } from "./InfoToast.js";
+import { exportBackup, importBackupFile, pickBackupFile, confirmReplaceDialog } from "./Backup.js";
 import { GameCanvas } from "./GameCanvas.js";
 import { GameMenu } from "./GameMenu.js";
 import { LevelLoader } from "./LevelLoader.js";
@@ -304,6 +305,8 @@ class MenuManager {
         this.taskBgImage = new TimerOrMotoPartOrMenuElem("BG image", null, this);
         this.taskRemoveBg = new TimerOrMotoPartOrMenuElem("Remove BG image", null, this);
         this.taskPresets = new TimerOrMotoPartOrMenuElem("Presets", null, this);
+        this.taskExportBackup = new TimerOrMotoPartOrMenuElem("Export backup", null, this);
+        this.taskImportBackup = new TimerOrMotoPartOrMenuElem("Import backup", null, this);
         this.bgModeSetting = new SettingsStringRender("BG mode", VisualSettings.settings.bgImageMode === "fill" ? 0 : VisualSettings.settings.bgImageMode === "fit" ? 1 : 2, this, ["Fill", "Fit", "Tile"], false, this.micro, this.gameMenuVisuals, false);
         this.showBgSetting = new SettingsStringRender("Show image", VisualSettings.settings.showBgImage ? 0 : 1, this, this.toggleOptionNames, true, this.micro, this.gameMenuVisuals, false);
         this.gameMenuVisuals?.addMenuElement(this.taskLineColor);
@@ -362,6 +365,8 @@ class MenuManager {
         this.gameMenuOptions?.addMenuElement(this.inputSetting);
         this.gameMenuOptions?.addMenuElement(this.lookAheadSetting);
         this.gameMenuOptions?.addMenuElement(this.clearHighscoreSetting);
+        this.gameMenuOptions?.addMenuElement(this.taskExportBackup);
+        this.gameMenuOptions?.addMenuElement(this.taskImportBackup);
         this.gameMenuOptions?.addMenuElement(this.settingStringBack);
         this.confirmNo = new SettingsStringRender("No", 0, this, [], false, this.micro, this.gameMenuMain, true);
         this.confirmYes = new SettingsStringRender("Yes", 0, this, [], false, this.micro, this.gameMenuMain, true);
@@ -1121,6 +1126,46 @@ class MenuManager {
     }
     if (menuElement === this.taskPresets) {
       openPresetsOverlay();
+      return;
+    }
+    if (menuElement === this.taskExportBackup) {
+      (async () => {
+        try {
+          await exportBackup();
+        } catch (e) {
+          console.error("Backup export failed", e);
+          showInfoToast("Backup", "Export failed (see console).");
+        }
+      })();
+      return;
+    }
+    if (menuElement === this.taskImportBackup) {
+      (async () => {
+        const file = await pickBackupFile();
+        if (!file) {
+          return;
+        }
+        if (!await confirmReplaceDialog()) {
+          return;
+        }
+        let result;
+        try {
+          result = await importBackupFile(file);
+        } catch (e) {
+          console.error("Backup import failed", e);
+          showInfoToast("Backup", "Import failed (see console).");
+          return;
+        }
+        if (!result.ok) {
+          showInfoToast("Backup", result.error);
+          return;
+        }
+        const r = result.report;
+        const miss = (r.packsMissing.length ? `, missing packs: ${r.packsMissing.length}` : "")
+          + (r.skinsMissing.length ? `, missing skins: ${r.skinsMissing.length}` : "");
+        showInfoToast("Backup imported", `packs: ${r.packsRestored}, skins: ${r.skinsRestored}${r.bgRestored ? ", bg ✓" : ""}${miss} — reloading…`);
+        setTimeout(() => window.location.reload(), 1600);
+      })();
       return;
     }
     if (menuElement === this.taskRemoveBg) {
