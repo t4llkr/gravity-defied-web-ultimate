@@ -105,7 +105,11 @@ export function countCompletedPerDifficulty(packId) {
 export class PackManager {
   constructor() {
     this.cache = new MRGCache();
-    this.archives = { gdmod: LocalArchive.packs("gdmod"), gdtr: LocalArchive.packs("gdtr") };
+    this.archives = {
+      gdmod: LocalArchive.packs("gdmod"),
+      gdtr: LocalArchive.packs("gdtr"),
+      merged: new LocalArchive("packs_merged", { byPrefix: true }),
+    };
     this._catalogs = {};
     // Поля окна каталога для PackMenu: раньше оценка с сервера, теперь честные —
     // весь локальный каталог известен сразу.
@@ -137,7 +141,7 @@ export class PackManager {
       const data = await this.archives[source].json();
       const list = data.items
         .filter((it) => it.hasMrg !== false && it.mrgSize != null)
-        .map((it) => this._normalize(source, it));
+        .map((it) => this._normalize(it.source ?? source, it));
       list.sort(SORTS.date_desc);
       this._catalogs[source] = list;
       if (source === "gdmod") {
@@ -150,13 +154,18 @@ export class PackManager {
     return this._catalogs[source];
   }
   _normalize(source, it) {
+    const unesc = (s) => (typeof s === "string" ? s.replace(/&\w+;|&#\d+;/g, (m) => {
+      const d = document.createElement("div");
+      d.innerHTML = m;
+      return d.textContent;
+    }) : s);
     const breakdown = Array.isArray(it.levelsBreakdown) ? it.levelsBreakdown : [0, 0, 0];
     return {
       id: PackManager.keyIdOf(source, it.id),
       srcId: Number(it.id),
       source,
-      name: it.name ?? "Pack " + it.id,
-      author: it.author ?? "",
+      name: unesc(it.name) ?? "Pack " + it.id,
+      author: unesc(it.author) ?? "",
       authorId: it.authorId ?? null,
       levels: breakdown.join("/"),
       levelsBreakdown: breakdown,
@@ -217,7 +226,7 @@ export class PackManager {
 
   // ---- выборка для PackMenu (вкладка browse — каталог gdmods) ----
   async getUiPage(uiPage, uiPerPage) {
-    const all = await this._catalog("gdmod");
+    const all = await this._catalog("merged");
     const items = all.slice((uiPage - 1) * uiPerPage, uiPage * uiPerPage);
     this.lastSliceRawCount = items.length;
     return items;
@@ -230,7 +239,7 @@ export class PackManager {
   async isPackCached(id) {
     return this.cache.hasPack(id);
   }
-  // Случайный пак для кнопки "Random": исключены сохранённые, невозможные и 100%
+  // Случайный пак для кнопки "Random": исключены сохранённые, невозможные и 100%.
   async randomPack(source, { query = "" } = {}) {
     const all = await this._catalog(source);
     const q = query.trim().toLowerCase();
@@ -280,18 +289,19 @@ export class PackManager {
 
   async savedList() {
     const metas = await this.getCachedPacks();
+    let merged = [];
+    try {
+      merged = await this._catalog("merged");
+    } catch {
+    }
+    const byId = new Map(merged.map((c) => [c.id, c]));
     const out = [];
     for (const meta of metas) {
       const source = PackManager.sourceOf(meta.id);
-      const srcId = PackManager.srcIdOf(meta.id);
       let extra = { mrgBytes: null, addedTs: null, addedRaw: null };
-      try {
-        const cat = await this._catalog(source);
-        const it = cat.find((c) => c.srcId === srcId);
-        if (it) {
-          extra = { mrgBytes: it.mrgBytes, addedTs: it.addedTs, addedRaw: it.addedRaw };
-        }
-      } catch {
+      const it = byId.get(meta.id);
+      if (it) {
+        extra = { mrgBytes: it.mrgBytes, addedTs: it.addedTs, addedRaw: it.addedRaw };
       }
       out.push({ ...meta, source, savedAt: meta.savedAt || 0, ...extra });
     }
@@ -302,8 +312,9 @@ export class PackManager {
   async downloadPack(id) {
     const source = PackManager.sourceOf(id);
     const srcId = PackManager.srcIdOf(id);
-    const cat = await this._catalog(source);
-    const entry = cat.find((c) => c.srcId === srcId);
+    // метаданные ищем в объединённом каталоге — рантайму не нужны исходные JSON
+    const cat = await this._catalog("merged");
+    const entry = cat.find((c) => c.id === Number(id));
     if (!entry) {
       throw new Error("Pack not in catalog: " + source + "/" + srcId);
     }

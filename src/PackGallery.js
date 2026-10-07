@@ -62,28 +62,28 @@ export function openPackGallery(menuManager, packMenu) {
     }
   } catch {
   }
+  if (uiState.tab === "gdtr") {
+    uiState.tab = "gdmods";
+  }
   const saveUiState = () => {
     try {
       window.localStorage.setItem(UI_KEY, JSON.stringify(uiState));
     } catch {
     }
   };
-  const TAB_SOURCES = { gdmods: "gdmod", gdtr: "gdtr" };
+  const TAB_SOURCES = { gdmods: "merged" };
   // [ключ, подпись, направление по умолчанию] — направление переключается кликом
   const SORT_TYPES = {
     gdmods: [
       ["date", "Date", "desc"], ["downloads", "Downloads", "desc"], ["tracks", "Tracks", "desc"],
-      ["name", "Name", "asc"], ["author", "Author", "asc"],
-    ],
-    gdtr: [
-      ["date", "Date", "desc"], ["tracks", "Tracks", "desc"], ["name", "Name", "asc"], ["author", "Author", "asc"],
+      ["name", "Name", "asc"], ["author", "Author", "asc"], ["source", "Source", "asc"],
     ],
     saved: [
       ["progress", "% completed", "desc"], ["saved", "Saved date", "desc"],
       ["name", "Name", "asc"], ["tracks", "Tracks", "desc"], ["source", "Source", "asc"],
     ],
   };
-  const DEFAULT_SORT = { gdmods: "date_desc", gdtr: "date_desc", saved: "progress_desc" };
+  const DEFAULT_SORT = { gdmods: "date_desc", saved: "progress_desc" };
   const currentSort = () => uiState.sorts[uiState.tab] || DEFAULT_SORT[uiState.tab];
   const currentPage = () => uiState.pages[uiState.tab] || 1;
   const setPage = (p) => { uiState.pages[uiState.tab] = p; saveUiState(); };
@@ -138,7 +138,7 @@ export function openPackGallery(menuManager, packMenu) {
 
   // вкладки
   const tabs = {};
-  for (const [tabId, label] of [["gdmods", "gdmod"], ["gdtr", "GDTR"], ["saved", "Saved"]]) {
+  for (const [tabId, label] of [["gdmods", "Catalog"], ["saved", "Saved"]]) {
     const b = document.createElement("button");
     b.textContent = label;
     b.style.cssText = tabCss;
@@ -239,7 +239,12 @@ export function openPackGallery(menuManager, packMenu) {
   const hide100 = mkHideToggle("hide100", "Hide 100%");
   const hideImp = mkHideToggle("hideImp", "Hide impossible");
 
+
   // поисковая строка — во всех вкладках
+  // правая группа: Random + поиск — целиком прижата к правому краю;
+  // при скрытом Random (вкладка Saved) поиск остаётся на месте
+  const rightGroup = document.createElement("div");
+  rightGroup.style.cssText = "display:flex;align-items:center;gap:12px;margin-left:auto;";
   const searchWrap = document.createElement("label");
   searchWrap.style.cssText = "display:flex;align-items:center;gap:6px;";
   const searchInput = document.createElement("input");
@@ -260,7 +265,7 @@ export function openPackGallery(menuManager, packMenu) {
   randBtn.textContent = "🎲 Random";
   // стиль как у кнопок сортировки; margin-left:auto прижимает связку
   // "кнопка + поиск" к правому краю
-  randBtn.style.cssText = "background:#1b1d22;border:1px solid #3a3d45;color:#ccc;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;margin-left:auto;";
+  randBtn.style.cssText = "background:#1b1d22;border:1px solid #3a3d45;color:#ccc;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:13px;";
   randBtn.onclick = async () => {
     const source = TAB_SOURCES[uiState.tab];
     const q = uiState.query[uiState.tab] || "";
@@ -279,7 +284,8 @@ export function openPackGallery(menuManager, packMenu) {
       setTimeout(() => el.classList.remove("gd-random-flash"), 2600);
     }
   };
-  controls.append(sortBar, hideLabel, hide100.label, hideImp.label, randBtn, searchWrap);
+  rightGroup.append(randBtn, searchWrap);
+  controls.append(sortBar, hideLabel, hide100.label, hideImp.label, rightGroup);
 
   const setTabs = () => {
     for (const [id, b] of Object.entries(tabs)) {
@@ -621,7 +627,8 @@ export function openPackGallery(menuManager, packMenu) {
       }
       const sub = subParts.filter(Boolean).join(" · ");
       const busy = busyId === it.id;
-      const packCardEl = card(it.name, sub, it.author, borderState, async () => {
+      const authorLine = it.author + (it.source === "gdtr" ? " · GDTR" : "");
+      const packCardEl = card(it.name, sub, authorLine, borderState, async () => {
         if (busyId !== null) {
           return;
         }
