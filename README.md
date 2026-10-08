@@ -19,7 +19,8 @@ Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Serve
 ## Level packs
 
 - **Two catalogs**: **gdmod** (gdmod.ru) and **GDTR** (gdtr.net) — separate tabs in the gallery, one flat namespace (`gdtr` ids are offset by 1 000 000 internally, so caches, records and progress never collide between sources).
-- **Pack gallery** (DOM overlay, mouse-driven): three tabs — **gdmod**, **GDTR**, **Saved** — with client-side paging (50/page) over the full local catalog. Catalog cards show name, levels (`a/b/c`), downloads (gdmod only) and date; the active pack has a green border, a fully completed one blue, an «impossible»-flagged one red. A soft-deleted pack that was completed keeps its blue border (completion lives in the records, not in the download), and a completed pack can not be flagged «impossible».
+- **Pack gallery** (DOM overlay, mouse-driven): tabs — **Catalog** (gdmod + GDTR), **Custom**, **Saved** — with client-side paging (50/page) over the full local catalog.
+- **Custom tab**: your own `.mrg` packs — import by button or drag-and-drop (author is read from the `Author - Name.mrg` file-name convention), cards with per-league progress bars and ⚠ flags like Saved, click to play, ✎ Edit opens the pack in the Level editor, delete (✕) soft or with progress. Catalog cards show name, levels (`a/b/c`), downloads (gdmod only) and date; the active pack has a green border, a fully completed one blue, an «impossible»-flagged one red. A soft-deleted pack that was completed keeps its blue border (completion lives in the records, not in the download), and a completed pack can not be flagged «impossible».
 - **Sorting** is a row of toggle buttons (click to activate, click again to flip direction): date / downloads / tracks / name / author; Saved additionally sorts by **% completed**, saved date, name, tracks, source.
 - **Search** by name works in every tab.
 - **Visibility toggles** on every tab: **Hide downloaded**, **Hide 100%** and **Hide impossible** (hidden packs are filtered out before paging — not pinned to any page). The current pack is never hidden: it stays visible at its sorted position while it is loaded.
@@ -28,6 +29,21 @@ Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Serve
 - **Delete from Saved** (✕, hover): «Delete pack» keeps records (progress restores on re-download); «Delete with progress» also wipes the pack's record stores and progress — mirroring the in-game *Clear highscore* (RecordStore cache evicted, in-memory unlock state reset, deleted current pack falls back to Original levels).
 - **Per-pack progress** on Saved cards: three mini-bars (Easy / Medium / Hard) counted from track records; league of a record is its store-name prefix (`p<id>_<league><track>`, e.g. `p42_115` = league 1, track 15), exactly as the game numbers them.
 - **Per-pack persistence**: unlocked leagues/tracks, per-track records and last selection are stored per pack (`gd-progress-*`); the last active pack is restored on reload. If a pack's binary is missing from the cache, the game falls back to the original levels with a notice.
+
+## Level editor
+
+A built-in track editor (main menu → **Level editor**) for authoring and testing custom `.mrg` packs:
+
+- **Canvas**: pan (right/middle drag), zoom to cursor (wheel), fit-to-view (**F**); fixed editor colors, independent of the in-game Visuals. The spawn point is drawn as a bike+rider schematic at 1:1 with the game's sprite proportions (wheel Ø15 px, 28 px wheelbase), scaled with the zoom; flags scale too.
+- **Editing**: click empty space to append a point, drag points / start / finish / flags, **Delete** removes the selection, Ctrl+Z / Ctrl+Y undo/redo (50 steps), optional 8 px snap-to-grid, X/Y property inputs. Multi-select: **Ctrl+click** toggles a point, **Shift+drag** box-selects (Ctrl+Shift adds to the current selection), dragging any selected point moves the whole group.
+- **Hotkeys** (layout-independent): **T** test drive, **F** fit, **H**/? help overlay, Esc close.
+- **Pack tree**: 3 leagues × tracks numbered **E12. / M56. / H123.**, with add (blank or flat/hills/sine templates), ✎ rename, ⧉ duplicate, drag-and-drop reorder within and across leagues, ✕ delete.
+- **Engine parity**: the editor decodes `.mrg` bit-exactly like the game (32-bit fixed-point pipeline, and the engine's silent drop of points whose X is not strictly increasing — what you see is exactly what the game renders). GDTR packs (F16 absolute points), empty stub tracks and over-declared header counts are tolerated.
+- **Validation**: per-track rules (start left of finish, ≥ 4 points, flag placement — start/finish flags sharing a point, finish flag left of start, spawn sunk below the surface measured from the wheel bottom); **Check pack for errors** sweeps every track, click a problem jumps to it (with auto-scroll); duplicate-point warnings go to the console at export.
+- **Minimap**: full-track strip with the viewport frame — click to jump.
+- **Test drive** (**T**): rides the current track in the real physics with its league's moto class, starts directly (bypassing the unlock guard), keeps the league on manual restart, suppresses in-game info toasts, then returns to the editor unchanged.
+- **Files**: export/import `.mrg` (import asks for confirmation); the **author is carried in the file name** — `Author - Name.mrg` — and parsed back on import. **Move to Custom** publishes the pack straight to the gallery's Custom tab (name + author + per-league track counts), where it can be played or re-opened for editing; custom pack ids start at 2 000 000 so records and progress never collide with the catalogs.
+- **Drafts**: the work-in-progress autosaves (debounced) to IndexedDB and restores on reopen; **New pack** discards it.
 
 ## Menus
 
@@ -88,13 +104,13 @@ Everything is stored in the browser, **per origin** (`scheme + host + port`):
 | Storage | Contents |
 |---|---|
 | `localStorage` | per-track records (`p<id>_*` record stores), per-pack progress/selection (`gd-progress-*`), pack flags (`gd-pack-flags`), visual presets (`gd-visual-presets`) and the preset undo slot (`gd-visual-last`), last active pack/skin, visual settings (`gd-visual`), game settings |
-| `IndexedDB` | downloaded level packs (`gdpacks`), downloaded skins and background image (`gdvisual`) |
+| `IndexedDB` | downloaded and custom level packs (`GravityDefiedPacks`), downloaded skins and background image (`gdvisual`), editor drafts (`gd-editor`) |
 
 Clearing site data wipes all progress, records and downloaded content.
 
 ## Changes from upstream
 
-Port date: 2026-09-23 → 2026-10-07; all 32 `.ts` modules transpiled to native ES modules. Highlights, in general terms:
+Port date: 2026-09-23 → 2026-10-09; all 32 `.ts` modules transpiled to native ES modules. Highlights, in general terms:
 
 - **Runtime**: no bundler and no Node.js — native ES modules, Vite-isms replaced with standard web APIs.
 - **Stability**: fixed a startup hang (background raster drawn before load) and an infinite loop in the physics bisection (a bike falling out of the map froze the tab) by restoring the original algorithm's termination guard; settings/progress now flush on tab close.
