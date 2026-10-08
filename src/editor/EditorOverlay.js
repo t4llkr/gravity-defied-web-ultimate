@@ -144,7 +144,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
         }
         const b = document.createElement("button");
         b.draggable = false;
-        b.textContent = `${"EMH"[l]}${i + 1} ${tr.name || "Track"}`;
+        b.textContent = `${"EMH"[l]}${i + 1}. ${tr.name || "Track"}`;
         b.style.cssText = btnCss + "flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" + (l === state.league && i === state.track ? "border-color:#6af;color:#fff;" : "");
         b.onclick = () => { state.select(l, i); selSet.clear(); fit(); rebuildTrackList(); refresh(); };
         rowEl.appendChild(b);
@@ -281,7 +281,12 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
         return;
       }
       try {
-        const leagues = parsePack(new Uint8Array(await f.arrayBuffer()));
+        const bytes = new Uint8Array(await f.arrayBuffer());
+        const leagues = parsePack(bytes);
+        const total = leagues.reduce((s, lg) => s + lg.length, 0);
+        if (!window.confirm(`Import pack "${f.name.replace(/\.mrg$/i, "")}" (${total} tracks)? The current pack will be replaced.`)) {
+          return;
+        }
         const st = EditorState.fromParsed(leagues, f.name.replace(/\.mrg$/i, ""));
         st.select(0, 0);
         // подменим состояние на месте, чтобы не пересоздавать оверлей
@@ -368,12 +373,10 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     const mm = ctx.menuManager;
     // конец теста = выход из заезда в меню (Play или Main)
     if (Micro.isInGameMenu && (mm.currentGameMenu === mm.gameMenuPlay || mm.currentGameMenu === mm.gameMenuMain)) {
-      const backAtMain = mm.currentGameMenu === mm.gameMenuMain;
       endTestDrive();
-      if (backAtMain) {
-        // выход из заезда падает в main — показываем Play-меню реального пака
-        mm.openMenu(mm.gameMenuPlay, false);
-      }
+      // только main: play menu после теста может показать протухшие
+      // селекторы/имена тестового уровня
+      mm.openMenu(mm.gameMenuMain, false);
     }
   };
   const runTestDrive = async () => {
@@ -402,6 +405,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       // прямой старт (как "Start>", но без guard'а разблокировок — лиги
       // тест-пака закрыты и Start> для medium/hard отклоняется меню)
       const mm = ctx.menuManager;
+      mm.availableLeagues = 2; // guard рестарта (taskStart) иначе отклоняет лиги тест-пака
       // селекторы Play-меню в позицию трека — иначе ручной рестарт
       // в заезде читает их дефолты и сбрасывает лигу до 100сс
       mm.settingStringLevel?.setCurrentOptionPos(lg);
@@ -563,9 +567,10 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       ctx.fillText("Select or add a track", 20, 30);
       return;
     }
-    // фиксированные цвета редактора — не зависят от Visuals игры
-    const line = [232, 235, 242];
-    const dark = [110, 116, 130];
+    // фиксированные цвета редактора — не зависят от Visuals игры;
+    // линия контрастна точкам (#dde) и селекшену (#fa4)
+    const line = [72, 199, 191];
+    const dark = [26, 80, 78];
     const P = t.points.map(toScreen);
     // grid (только при включённом снапе)
     if (snapChk.checked) {
@@ -725,7 +730,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     mmap = { minX, minY, s, ox, oy, w, h };
     const M = (p) => ({ x: ox + (p.x - minX) * s, y: h - oy - (p.y - minY) * s });
     // трасса — фиксированный цвет редактора
-    mctx.strokeStyle = "rgb(232,235,242)";
+    mctx.strokeStyle = "rgb(72,199,191)";
     mctx.lineWidth = 1.2;
     mctx.beginPath();
     t.points.forEach((p, i) => {
@@ -753,7 +758,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     mctx.strokeRect(Math.min(a.x, b.x), Math.min(a.y, b.y), Math.abs(b.x - a.x), Math.abs(b.y - a.y));
   };
 
-  minimap.addEventListener("mousedown", (e) => {
+  const onMinimapDown = (e) => {
     const t = state.cur();
     if (!t || !mmap) {
       return;
@@ -762,7 +767,8 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     view.x = mmap.minX + (e.clientX - rect.left - mmap.ox) / mmap.s;
     view.y = mmap.minY + (mmap.h - mmap.oy - (e.clientY - rect.top)) / mmap.s;
     draw();
-  });
+  };
+  minimap.addEventListener("mousedown", onMinimapDown);
 
   const refresh = () => {
     scheduleSave();
@@ -871,7 +877,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     if (!snapChk.checked) return wp;
     return { x: Math.round(wp.x / 8) * 8, y: Math.round(wp.y / 8) * 8 };
   };
-  canvas.addEventListener("mousedown", (e) => {
+  const onCanvasDown = (e) => {
     const sp = evPos(e);
     if (e.button === 1 || e.button === 2) {
       drag = { kind: "pan", sx: sp.x, sy: sp.y, vx: view.x, vy: view.y };
@@ -923,7 +929,8 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       drag = { kind: "maybe", sx: sp.x, sy: sp.y, moved: false, wx: toWorld(sp).x, wy: toWorld(sp).y, ctrl: e.ctrlKey || e.metaKey };
     }
     refresh();
-  });
+  };
+  canvas.addEventListener("mousedown", onCanvasDown);
   // ONECLICK_INSERT: single left click anywhere inserts a point
   const insertPointAt = (wp) => {
     const tr = state.ensureTrack();
@@ -1039,7 +1046,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     drag = null;
   };
   window.addEventListener("mouseup", onUp);
-  canvas.addEventListener("wheel", (e) => {
+  const onCanvasWheel = (e) => {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
     const sp = { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -1049,8 +1056,10 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     view.x += before.x - after.x;
     view.y += before.y - after.y;
     draw();
-  }, { passive: false });
-  canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+  };
+  canvas.addEventListener("wheel", onCanvasWheel, { passive: false });
+  const onCanvasCtx = (e) => e.preventDefault();
+  canvas.addEventListener("contextmenu", onCanvasCtx);
   let keysActive = true;
   // ---- T4.4 help-оверлей со списком горячих клавиш ----
   let helpBox = null;
@@ -1190,6 +1199,12 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     window.removeEventListener("mousemove", onMove);
     window.removeEventListener("mouseup", onUp);
     window.removeEventListener("resize", onResize);
+    canvas.removeEventListener("mousedown", onCanvasDown);
+    canvas.removeEventListener("wheel", onCanvasWheel);
+    canvas.removeEventListener("contextmenu", onCanvasCtx);
+    minimap.removeEventListener("mousedown", onMinimapDown);
+    selSet.clear();
+    state = null; // не держим пак в замыкании debounced-сейвов
     overlay.remove();
   };
   activeEditor = cleanup;
