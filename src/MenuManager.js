@@ -1,5 +1,6 @@
 import { VisualSettings, pickColor, pickFile, saveBgImage, clearBgImage } from "./VisualSettings.js";
 import { openPresetsOverlay } from "./VisualPresets.js";
+import { openEditorOverlay } from "./editor/EditorOverlay.js";
 import { showInfoToast } from "./InfoToast.js";
 import { exportBackup, importBackupFile, pickBackupFile, confirmReplaceDialog } from "./Backup.js";
 import { GameCanvas } from "./GameCanvas.js";
@@ -306,6 +307,7 @@ class MenuManager {
         this.taskBgImage = new TimerOrMotoPartOrMenuElem("BG image", null, this);
         this.taskRemoveBg = new TimerOrMotoPartOrMenuElem("Remove BG image", null, this);
         this.taskPresets = new TimerOrMotoPartOrMenuElem("Presets", null, this);
+        this.taskLevelEditor = new TimerOrMotoPartOrMenuElem("Level editor", null, this);
         this.taskExportBackup = new TimerOrMotoPartOrMenuElem("Export backup", null, this);
         this.taskImportBackup = new TimerOrMotoPartOrMenuElem("Import backup", null, this);
         this.bgModeSetting = new SettingsStringRender("BG mode", VisualSettings.settings.bgImageMode === "fill" ? 0 : VisualSettings.settings.bgImageMode === "fit" ? 1 : 2, this, ["Fill", "Fit", "Tile"], false, this.micro, this.gameMenuVisuals, false);
@@ -328,6 +330,7 @@ class MenuManager {
         this.gameMenuMain?.addMenuElement(this.taskHelp);
         this.gameMenuMain?.addMenuElement(this.taskVisuals);
         this.gameMenuMain?.addMenuElement(this.taskLevelPacks);
+        this.gameMenuMain?.addMenuElement(this.taskLevelEditor);
         this.gameMenuMain?.addMenuElement(this.taskSkins);
         this.gameMenuMain?.addMenuElement(this.taskAbout);
         this.gameMenuMain?.addMenuElement(this.settingStringExitGame);
@@ -1134,6 +1137,10 @@ class MenuManager {
           this.showAlert("BG image", "Failed to load the image.", null);
         }
       });
+      return;
+    }
+    if (menuElement === this.taskLevelEditor) {
+      openEditorOverlay(null, { menuManager: this, packMenu: this.packMenu });
       return;
     }
     if (menuElement === this.taskPresets) {

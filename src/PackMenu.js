@@ -1,4 +1,5 @@
 import { GameMenu } from "./GameMenu.js";
+import { isCustomId } from "./CustomStore.js";
 import { LevelLoader } from "./LevelLoader.js";
 import { TextRender } from "./TextRender.js";
 import { TimerOrMotoPartOrMenuElem } from "./TimerOrMotoPartOrMenuElem.js";
@@ -258,6 +259,20 @@ class PackMenu {
         this.applyLoader(this.originalLoader, 0);
         this.menuManager.showAlert("Pack Loaded", "Original levels ready!", null);
         this.menuManager.openMenu(this.menuManager.gameMenuMain, false);
+      }
+      return;
+    }
+    if (isCustomId(meta.id)) {
+      // custom-пак живёт в кэше, каталог ему не нужен (иначе "Pack not in catalog")
+      try {
+        const blobUrl = await this.packManager.getPackBlobUrl(meta.id);
+        const newLoader = await LevelLoader.create(blobUrl);
+        this.applyLoader(newLoader, meta.id);
+        this.menuManager.showAlert("Pack Loaded", `${meta.name} ready!`, null);
+        this.menuManager.openMenu(this.menuManager.gameMenuMain, false);
+      } catch (err) {
+        console.error("Failed to load custom pack:", err);
+        this.menuManager.showAlert("Error", "Failed to load pack", null);
       }
       return;
     }

@@ -2,6 +2,9 @@
 // метаданные из data/*.json, файлы из data/*.zip (LocalArchive через PackManager).
 // Синяя рамка карточки = 100% прохождения (все треки пройдены по рекордам).
 import { PACK_SOURCES, countCompletedPerDifficulty } from "./PackManager.js";
+import { parsePack } from "./TrackCodec.js";
+import { isCustomId, customList, customGet, customPut, customDelete } from "./CustomStore.js";
+import { openEditorOverlay } from "./editor/EditorOverlay.js";
 
 const LETTERS = ["E", "M", "H"];
 const PAGE = 50;
@@ -82,8 +85,11 @@ export function openPackGallery(menuManager, packMenu) {
       ["progress", "% completed", "desc"], ["saved", "Saved date", "desc"],
       ["name", "Name", "asc"], ["tracks", "Tracks", "desc"], ["source", "Source", "asc"],
     ],
+    custom: [
+      ["name", "Name", "asc"], ["tracks", "Tracks", "desc"], ["saved", "Added", "desc"],
+    ],
   };
-  const DEFAULT_SORT = { gdmods: "date_desc", saved: "progress_desc" };
+  const DEFAULT_SORT = { gdmods: "date_desc", saved: "progress_desc", custom: "saved_desc" };
   const currentSort = () => uiState.sorts[uiState.tab] || DEFAULT_SORT[uiState.tab];
   const currentPage = () => uiState.pages[uiState.tab] || 1;
   const setPage = (p) => { uiState.pages[uiState.tab] = p; saveUiState(); };
@@ -138,7 +144,7 @@ export function openPackGallery(menuManager, packMenu) {
 
   // вкладки
   const tabs = {};
-  for (const [tabId, label] of [["gdmods", "Catalog"], ["saved", "Saved"]]) {
+  for (const [tabId, label] of [["gdmods", "Catalog"], ["custom", "Custom"], ["saved", "Saved"]]) {
     const b = document.createElement("button");
     b.textContent = label;
     b.style.cssText = tabCss;
@@ -305,7 +311,7 @@ export function openPackGallery(menuManager, packMenu) {
     // набор сортировок под вкладку
     refreshSortBtns();
     searchInput.value = uiState.query[uiState.tab] || "";
-    const isCatalog = uiState.tab !== "saved";
+    const isCatalog = uiState.tab === "gdmods";
     hideLabel.style.display = isCatalog ? "flex" : "none";
     randBtn.style.display = isCatalog ? "" : "none";
     hideChk.checked = !!uiState.hideDl[uiState.tab];
@@ -477,38 +483,43 @@ export function openPackGallery(menuManager, packMenu) {
     });
   };
 
-  // удаление сохранённого пака; mode: "soft" | "progress".
+  // выметание рекордов/прогресса пака по id (общий для Saved и Custom).
   // Жёсткий режим повторяет игровой "Clear highscore": рекорды выметаются через
   // RecordStore.deleteRecordStore (чистит и кэш RecordStore.opened, и localStorage),
   // gd-progress-<id> удаляется; живое in-memory состояние сбрасывается, чтобы
   // saveProgressToStorage при смене пака не записал старые разблокировки обратно.
+  const deleteProgressFor = async (id) => {
+    try {
+      const { RecordStore } = await import("./rms/RecordStore.js");
+      const recPrefix = "p" + id + "_";
+      for (const name of RecordStore.listRecordStores()) {
+        if (name !== "GWTRStates" && name.startsWith(recPrefix)) {
+          RecordStore.deleteRecordStore(name);
+        }
+      }
+    } catch (e) {
+      console.error("PackGallery: record store cleanup failed, id=" + id, e);
+    }
+    try {
+      window.localStorage.removeItem("gd-progress-" + id);
+    } catch {
+    }
+    if (menuManager.currentPackId === id) {
+      menuManager.availableLeagues = 0;
+      menuManager.maxAvailableLevel = 1;
+      if (menuManager.unlockedTracksByLevel) {
+        menuManager.unlockedTracksByLevel[0] = 0;
+        menuManager.unlockedTracksByLevel[1] = 0;
+        menuManager.unlockedTracksByLevel[2] = -1;
+      }
+    }
+  };
+
+  // удаление сохранённого пака; mode: "soft" | "progress".
   const deleteSavedPack = async (meta, mode) => {
     await pm.deletePack(meta.id);
     if (mode === "progress") {
-      try {
-        const { RecordStore } = await import("./rms/RecordStore.js");
-        const recPrefix = "p" + meta.id + "_";
-        for (const name of RecordStore.listRecordStores()) {
-          if (name !== "GWTRStates" && name.startsWith(recPrefix)) {
-            RecordStore.deleteRecordStore(name);
-          }
-        }
-      } catch (e) {
-        console.error("PackGallery: record store cleanup failed, id=" + meta.id, e);
-      }
-      try {
-        window.localStorage.removeItem("gd-progress-" + meta.id);
-      } catch {
-      }
-      if (menuManager.currentPackId === meta.id) {
-        menuManager.availableLeagues = 0;
-        menuManager.maxAvailableLevel = 1;
-        if (menuManager.unlockedTracksByLevel) {
-          menuManager.unlockedTracksByLevel[0] = 0;
-          menuManager.unlockedTracksByLevel[1] = 0;
-          menuManager.unlockedTracksByLevel[2] = -1;
-        }
-      }
+      await deleteProgressFor(meta.id);
     }
     if (menuManager.currentPackId === meta.id) {
       await packMenu.onCachedPackSelected({ id: 0, name: "Original levels", author: "built-in", levels: "", mrgSize: "", hasGdlvl: false });
@@ -687,6 +698,7 @@ export function openPackGallery(menuManager, packMenu) {
       saved = await pm.savedList();
     } catch {
     }
+    saved = saved.filter((m) => !isCustomId(m.id)); // custom живут во вкладке Custom
     const q = (uiState.query[uiState.tab] || "").trim().toLowerCase();
     if (q) {
       saved = saved.filter((m) => (m.name || "").toLowerCase().includes(q));
@@ -728,10 +740,177 @@ export function openPackGallery(menuManager, packMenu) {
     }
   }
 
+  // ---- Custom (T3.3): импорт .mrg (кнопка + drag-and-drop), применение, Edit, удаление ----
+  const pickMrgFile = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = ".mrg";
+    input.onchange = () => {
+      const f = input.files && input.files[0];
+      if (f) importMrgFile(f);
+    };
+    input.click();
+  };
+  const importMrgFile = async (file) => {
+    try {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      const leagues = parsePack(bytes); // бросит при битом файле
+      const levelsBreakdown = leagues.map((lg) => lg.length);
+      if (levelsBreakdown.reduce((s, n) => s + n, 0) === 0) {
+        throw new Error("pack has no tracks");
+      }
+      await customPut({
+        name: file.name.replace(/\.mrg$/i, ""),
+        author: "custom",
+        mrg: bytes,
+        levelsBreakdown,
+      });
+      toast("Custom pack imported");
+    } catch (e) {
+      toast("Import failed: " + (e && e.message ? e.message : e));
+    }
+    render();
+  };
+  const applyCustomPack = async (meta) => {
+    try {
+      const rec = await customGet(meta.id);
+      if (!rec) {
+        throw new Error("pack data missing");
+      }
+      const url = URL.createObjectURL(new Blob([rec.mrgBuffer]));
+      const { LevelLoader } = await import("./LevelLoader.js");
+      const loader = await LevelLoader.create(url); // тот же путь, что у restoreLastPack
+      packMenu.applyLoader(loader, meta.id);
+      toast("Custom pack applied");
+    } catch (e) {
+      toast("Failed to apply: " + (e && e.message ? e.message : e));
+    }
+    render();
+  };
+  const editCustomPack = async (meta) => {
+    const rec = await customGet(meta.id);
+    if (!rec) {
+      toast("Pack data missing");
+      return;
+    }
+    let leagues;
+    try {
+      leagues = parsePack(new Uint8Array(rec.mrgBuffer));
+    } catch (e) {
+      toast("Failed to parse: " + e.message);
+      return;
+    }
+    closePackGallery(); // иначе Esc-обработчик галереи перехватит хоткеи редактора
+    openEditorOverlay(leagues, { menuManager, packMenu }, {
+      packName: meta.name,
+      author: meta.author,
+      customId: meta.id,
+    });
+  };
+  const customCard = (meta, currentId) => {
+    const p = progressOf(meta); // countCompletedPerDifficulty(id) — генерик по id
+    purgeFlagIfCompleted(meta.id, p.doneAll);
+    let st = currentId === meta.id ? "current" : p.doneAll ? "completed" : "";
+    if (!st && isFlagged(meta.id)) {
+      st = "failed";
+    }
+    const el = card(meta.name, null, meta.author || "custom", st, async () => {
+      await applyCustomPack(meta);
+    }, "", "", p.rows, false, p.doneAll ? null : { id: meta.id }, async () => {
+      const mode = await confirmDeletePack(meta.name);
+      if (!mode) {
+        return;
+      }
+      if (mode === "progress") {
+        await deleteProgressFor(meta.id);
+      }
+      await customDelete(meta.id);
+      if (menuManager.currentPackId === meta.id) {
+        await packMenu.onCachedPackSelected({ id: 0, name: "Original levels", author: "built-in", levels: "", mrgSize: "", hasGdlvl: false });
+      }
+      toast("Custom pack deleted");
+      render();
+    });
+    const edit = document.createElement("button");
+    edit.textContent = "✎ Edit";
+    edit.title = "Open in Level editor";
+    edit.style.cssText = "position:absolute;bottom:4px;right:4px;background:#22242a;border:1px solid #444;color:#9cf;padding:2px 8px;border-radius:4px;cursor:pointer;font-size:11px;opacity:0;transition:opacity 0.15s;";
+    el.addEventListener("mouseenter", () => { edit.style.opacity = "1"; });
+    el.addEventListener("mouseleave", () => { edit.style.opacity = "0"; });
+    edit.onclick = (e) => { e.stopPropagation(); void editCustomPack(meta); };
+    el.appendChild(edit);
+    return el;
+  };
+  async function renderCustom() {
+    clearBody();
+    const g = grid();
+    body.appendChild(g);
+    const head = document.createElement("div");
+    head.style.cssText = "grid-column:1/-1;display:flex;gap:14px;align-items:center;flex-wrap:wrap;";
+    const drop = document.createElement("div");
+    drop.textContent = "…or drop a .mrg file anywhere in this tab";
+    drop.style.cssText = "border:2px dashed #3a3d45;border-radius:8px;padding:9px 16px;color:#667;font-size:13px;";
+    head.append(mkBtn("Import .mrg", () => pickMrgFile()), drop);
+    g.appendChild(head);
+    overlay.ondragover = (e) => { e.preventDefault(); drop.style.borderColor = "#6af"; };
+    overlay.ondragleave = () => { drop.style.borderColor = "#3a3d45"; };
+    overlay.ondrop = (e) => {
+      e.preventDefault();
+      drop.style.borderColor = "#3a3d45";
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (f) {
+        importMrgFile(f);
+      }
+    };
+    let items = [];
+    try {
+      items = await customList();
+    } catch {
+    }
+    const q = (uiState.query[uiState.tab] || "").trim().toLowerCase();
+    if (q) {
+      items = items.filter((m) => (m.name || "").toLowerCase().includes(q));
+    }
+    if (hide100.chk.checked) {
+      items = items.filter((m) => m.id === menuManager.currentPackId || !progressOf(m).doneAll);
+    }
+    if (hideImp.chk.checked) {
+      items = items.filter((m) => m.id === menuManager.currentPackId || !isFlagged(m.id));
+    }
+    const m = /^(.*)_(asc|desc)$/.exec(currentSort()) || ["", "saved", "desc"];
+    const sKey = m[1];
+    const sDir = m[2] === "asc" ? 1 : -1;
+    items.sort((a, b) => {
+      let d = 0;
+      if (sKey === "tracks") {
+        d = (a.tracksTotal || 0) - (b.tracksTotal || 0);
+      } else if (sKey === "saved") {
+        d = (a.savedAt || 0) - (b.savedAt || 0);
+      } else {
+        d = (a.name || "").localeCompare(b.name || "");
+      }
+      return (d !== 0 ? d : (a.name || "").localeCompare(b.name || "")) * sDir;
+    });
+    const currentId = menuManager.currentPackId;
+    for (const meta of items) {
+      g.appendChild(customCard(meta, currentId));
+    }
+    if (items.length === 0) {
+      const hint = document.createElement("div");
+      hint.textContent = q
+        ? "No custom packs match the search."
+        : "No custom packs yet — import a .mrg above or create one in the Level editor.";
+      hint.style.cssText = "grid-column:1/-1;text-align:center;color:#888;padding:20px;";
+      g.appendChild(hint);
+    }
+  }
+
   const render = () => {
     refreshSortBtns();
     if (uiState.tab === "saved") {
       renderSaved();
+    } else if (uiState.tab === "custom") {
+      renderCustom();
     } else {
       renderCatalog();
     }

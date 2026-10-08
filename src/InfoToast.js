@@ -1,6 +1,10 @@
 // Информационные тосты для алертов игры (showAlert): показывают в верхней
 // части экрана текст, который иначе уходит только в консоль.
 let host = null;
+let suppressed = false; // тест-драйв: алерты игры не показываем
+export function setInfoToastSuppressed(v) {
+  suppressed = !!v;
+}
 const active = new Map(); // key -> { el, count, timer }
 
 function ensureHost() {
@@ -15,6 +19,9 @@ function ensureHost() {
 
 export function showInfoToast(title, text) {
   try {
+    if (suppressed) {
+      return;
+    }
     const t = (text ?? "").toString();
     const key = ((title ?? "") + "|" + t);
     const existing = active.get(key);
