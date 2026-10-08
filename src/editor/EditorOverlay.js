@@ -1,11 +1,11 @@
 // Оверлей редактора уровней: холст (пан/зум), точки/старт/финиш drag,
 // импорт/экспорт .mrg, валидация, undo/redo. Вход: главное меню -> Level editor.
 import { EditorState, clampPointX, surfaceY } from "./EditorState.js";
-import { parsePack, serializePack } from "../TrackCodec.js";
+import { parsePack, serializePack, mrgFilename, parseMrgFilename } from "../TrackCodec.js";
 import { VisualSettings } from "../VisualSettings.js";
 import { Micro } from "../Micro.js";
 import { loadDraft, scheduleDraftSave, clearDraft } from "./EditorStore.js";
-import { scheduleCustomSave } from "../CustomStore.js";
+import { scheduleCustomSave, customPut } from "../CustomStore.js";
 import { setInfoToastSuppressed } from "../InfoToast.js";
 
 let activeEditor = null;
@@ -24,7 +24,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     return;
   }
   // customId: редактор открыт из вкладки Custom (T3.4) — автосейв идёт в пак, не в черновик
-  const customId = opts && opts.customId != null ? opts.customId : null;
+  let customId = opts && opts.customId != null ? opts.customId : null;
   let state;
   if (initialLeagues) {
     state = EditorState.fromParsed(initialLeagues, (opts && opts.packName) || "Imported pack");
@@ -145,7 +145,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
         const b = document.createElement("button");
         b.draggable = false;
         b.textContent = `${"EMH"[l]}${i + 1}. ${tr.name || "Track"}`;
-        b.style.cssText = btnCss + "flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" + (l === state.league && i === state.track ? "border-color:#6af;color:#fff;" : "");
+        b.style.cssText = btnCss + "flex:1;min-width:0;height:22px;padding:0 6px;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" + (l === state.league && i === state.track ? "border-color:#6af;color:#fff;" : "");
         b.onclick = () => { state.select(l, i); selSet.clear(); fit(); rebuildTrackList(); refresh(); };
         rowEl.appendChild(b);
         const op = (label, title, fn, disabled) => {
@@ -158,6 +158,15 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
           }
           return o;
         };
+        rowEl.appendChild(op("✎", "Rename track", () => {
+          const name = window.prompt("Track name:", tr.name || "");
+          if (name === null) {
+            return;
+          }
+          tr.name = name.trim() || tr.name;
+          rebuildTrackList();
+          refresh();
+        }));
         rowEl.appendChild(op("⧉", "Duplicate track", () => {
           const copy = JSON.parse(JSON.stringify(tr));
           copy.name = (tr.name || "Track") + " copy";
@@ -216,12 +225,12 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       trackList.appendChild(add);
       // T4.3 шаблоны старта
       const tplRow = document.createElement("div");
-      tplRow.style.cssText = "display:flex;gap:2px;padding-left:10px;";
+      tplRow.style.cssText = "display:flex;gap:2px;";
       const tplBtn = (label, title, kind) => {
         const b = document.createElement("button");
         b.textContent = label;
         b.title = title;
-        b.style.cssText = btnCss + "flex:1;opacity:0.7;font-size:11px;padding:3px 4px;";
+        b.style.cssText = btnCss + "flex:1;opacity:0.7;font-size:11px;padding:3px 4px;text-align:center;white-space:nowrap;overflow:hidden;";
         b.onclick = () => {
           state.leagues[l].push(EditorState.templateTrack(kind));
           state.select(l, state.leagues[l].length - 1);
@@ -241,7 +250,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
   };
 
   const row = document.createElement("div");
-  row.style.cssText = "display:flex;gap:6px;";
+  row.style.cssText = "display:flex;gap:6px;justify-content:center;";
   const mkBtn = (label, fn, disabled) => {
     const b = document.createElement("button");
     b.textContent = label;
@@ -265,7 +274,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     const blob = new Blob([data], { type: "application/octet-stream" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = (state.packName.replace(/[^\w\- ]+/g, "_").trim() || "pack") + ".mrg";
+    a.download = mrgFilename(state.packName, state.author);
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -284,10 +293,12 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
         const bytes = new Uint8Array(await f.arrayBuffer());
         const leagues = parsePack(bytes);
         const total = leagues.reduce((s, lg) => s + lg.length, 0);
-        if (!window.confirm(`Import pack "${f.name.replace(/\.mrg$/i, "")}" (${total} tracks)? The current pack will be replaced.`)) {
+        const parsed = parseMrgFilename(f.name);
+        if (!window.confirm(`Import pack "${parsed.name}"${parsed.author ? " by " + parsed.author : ""} (${total} tracks)? The current pack will be replaced.`)) {
           return;
         }
-        const st = EditorState.fromParsed(leagues, f.name.replace(/\.mrg$/i, ""));
+        const st = EditorState.fromParsed(leagues, parsed.name);
+        st.author = parsed.author;
         st.select(0, 0);
         // подменим состояние на месте, чтобы не пересоздавать оверлей
         state.leagues = st.leagues;
@@ -303,16 +314,40 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     input.click();
   };
 
+  const doPublish = async () => {
+    if (!window.confirm(`Move pack "${state.packName}" to the Custom tab of Level Packs? You can edit it there later via ✎ Edit.`)) {
+      return;
+    }
+    try {
+      const bytes = serializePack(state.leagues.map((lg) => lg.map((tr, i) => ({ ...tr, name: tr.name || "Track " + (i + 1) }))));
+      const rec = await customPut({
+        name: state.packName || "Custom pack",
+        author: state.author || "custom",
+        mrg: bytes,
+        levelsBreakdown: state.leagues.map((lg) => lg.length),
+      });
+      customId = rec.id; // дальше автосейв идёт уже в custom-запись
+      savedInd.textContent = "Saved to Custom packs (id " + rec.id + ")";
+    } catch (e) {
+      window.alert("Save failed: " + (e && e.message ? e.message : e));
+    }
+  };
   row.append(
     mkBtn("Export .mrg", doExport),
     mkBtn("Import .mrg", doImport),
   );
+  for (const b of row.children) {
+    b.style.flex = "1"; // растягиваем на всю ширину ряда
+  }
   const row2 = document.createElement("div");
-  row2.style.cssText = "display:flex;gap:6px;";
+  row2.style.cssText = "display:flex;gap:6px;justify-content:center;";
   row2.append(
     mkBtn("Undo", () => { state.undo(); refresh(); }),
     mkBtn("Redo", () => { state.redo(); refresh(); }),
   );
+  for (const b of row2.children) {
+    b.style.flex = "1";
+  }
   if (customId == null) {
     row2.appendChild(mkBtn("New pack", async () => {
       if (!window.confirm("Discard the current draft and start a new pack?")) {
@@ -429,10 +464,10 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     }
   };
   const testBtn = mkBtn("Test drive", runTestDrive, !ctx);
-  testBtn.style.cssText += "background:#274;";
+  testBtn.style.cssText += "background:#274;"
 
   // ---- T4.2 пакетная валидация: все трассы пака, клик по строке — переход ----
-  const checkBtn = mkBtn("Check pack", () => {
+  const checkBtn = mkBtn("Check pack for errors", () => {
     const problems = [];
     for (let l = 0; l < 3; l++) {
       state.leagues[l].forEach((tr, i) => {
@@ -489,7 +524,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     overlay.appendChild(box);
   });
 
-  side.append(title, savedInd, nameInput, authorInput, trackList, row, row2, testBtn, checkBtn, issues);
+  side.append(title, savedInd, nameInput, authorInput, trackList, row, mkBtn("Move to Custom", doPublish), row2, testBtn, checkBtn, issues);
 
   // центр: холст
   const main = document.createElement("div");

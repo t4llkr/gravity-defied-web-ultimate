@@ -1,3 +1,23 @@
+// Имя файла несёт автора: "Author - Name.mrg" (конвенция сообщества GD).
+export function mrgFilename(name, author) {
+  const clean = (s) => (s || "").replace(/[^\w\- ]+/g, "_").trim();
+  const n = clean(name) || "pack";
+  const a = clean(author);
+  return a ? a + " - " + n + ".mrg" : n + ".mrg";
+}
+export function parseMrgFilename(filename) {
+  const base = (filename || "").replace(/\.mrg$/i, "").trim();
+  const sep = base.indexOf(" - ");
+  if (sep > 0) {
+    const author = base.slice(0, sep).trim();
+    const name = base.slice(sep + 3).trim();
+    if (author && name) {
+      return { author, name };
+    }
+  }
+  return { author: "", name: base };
+}
+
 // Кодек .mrg — точное зеркало GameLevel.load / LevelLoader.create.
 // Координаты файла = пиксели × 8192 (addPointSimple: v << 16 >> 3), значения signed.
 //

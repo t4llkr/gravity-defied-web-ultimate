@@ -17,8 +17,9 @@ export class EditorState {
     const last = points[points.length - 1];
     return {
       name: "Track",
-      // старт — на поверхности трассы; финиш — X-порог в конце (Y=0, как в .mrg)
-      start: { x: 20, y: surfaceY({ points }, 20) },
+      // старт — выше поверхности (+23: низ колёс -7.5 не должен висеть в грунте);
+      // финиш — X-порог в конце (Y=0, как в .mrg)
+      start: { x: 20, y: surfaceY({ points }, 20) + 23 },
       // порог финиша должен быть СТРОГО левее последней точки, иначе флаг
       // не найдётся (initPoints ищет точку с X > finish)
       finish: { x: last.x - 1, y: 0 },
@@ -42,7 +43,8 @@ export class EditorState {
     const last = pts[pts.length - 1];
     return {
       name: { flat: "Flat line", hills: "Hills", sine: "Sine wave" }[kind] || "Track",
-      start: { x: 20, y: surfaceY({ points: pts }, 20) },
+      // спавн чуть выше поверхности — иначе колёса (низ -7.5) висят в грунте
+      start: { x: 20, y: surfaceY({ points: pts }, 20) + 23 },
       finish: { x: last.x - 1, y: 0 },
       points: pts,
     };

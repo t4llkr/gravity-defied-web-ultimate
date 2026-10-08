@@ -2,7 +2,7 @@
 // метаданные из data/*.json, файлы из data/*.zip (LocalArchive через PackManager).
 // Синяя рамка карточки = 100% прохождения (все треки пройдены по рекордам).
 import { PACK_SOURCES, countCompletedPerDifficulty } from "./PackManager.js";
-import { parsePack } from "./TrackCodec.js";
+import { parsePack, parseMrgFilename } from "./TrackCodec.js";
 import { isCustomId, customList, customGet, customPut, customDelete } from "./CustomStore.js";
 import { openEditorOverlay } from "./editor/EditorOverlay.js";
 
@@ -759,9 +759,10 @@ export function openPackGallery(menuManager, packMenu) {
       if (levelsBreakdown.reduce((s, n) => s + n, 0) === 0) {
         throw new Error("pack has no tracks");
       }
+      const parsed = parseMrgFilename(file.name);
       await customPut({
-        name: file.name.replace(/\.mrg$/i, ""),
-        author: "custom",
+        name: parsed.name || "Custom pack",
+        author: parsed.author || "custom",
         mrg: bytes,
         levelsBreakdown,
       });
