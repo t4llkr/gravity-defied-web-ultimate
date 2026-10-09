@@ -14,16 +14,33 @@ python3 -m http.server 8000
 npx serve .
 ```
 
-Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Server», nginx, GitHub Pages, and so on. Opening `index.html` directly via `file://` will **not** work: the game is built from ES modules, which browsers only load over HTTP(S).
+## Contents
+
+- [Running locally](#running-locally)
+- [Level packs](#level-packs)
+- [Level editor](#level-editor)
+- [Menus](#menus)
+- [Skins](#skins)
+- [Backup](#backup)
+- [Local data layout](#local-data-layout)
+- [Visual customization](#visual-customization)
+- [Save data](#save-data)
+- [Changes from upstream](#changes-from-upstream)
+- [License](#license)
+
+## Running locally
+
+No build step: serve the repository root with any static file server and open it in a browser. Any equivalent works — VS Code «Live Server», nginx, GitHub Pages, and so on. Opening `index.html` directly via `file://` will **not** work: the game is built from ES modules, which browsers only load over HTTP(S).
 
 ## Level packs
 
-- **Two catalogs**: **gdmod** (gdmod.ru) and **GDTR** (gdtr.net) — separate tabs in the gallery, one flat namespace (`gdtr` ids are offset by 1 000 000 internally, so caches, records and progress never collide between sources).
-- **Pack gallery** (DOM overlay, mouse-driven): tabs — **Catalog** (gdmod + GDTR), **Custom**, **Saved** — with client-side paging (50/page) over the full local catalog.
-- **Custom tab**: your own `.mrg` packs — import by button or drag-and-drop (author is read from the `Author - Name.mrg` file-name convention), cards with per-league progress bars and ⚠ flags like Saved, click to play, ✎ Edit opens the pack in the Level editor, delete (✕) soft or with progress. Catalog cards show name, levels (`a/b/c`), downloads (gdmod only) and date; the active pack has a green border, a fully completed one blue, an «impossible»-flagged one red. A soft-deleted pack that was completed keeps its blue border (completion lives in the records, not in the download), and a completed pack can not be flagged «impossible».
-- **Sorting** is a row of toggle buttons (click to activate, click again to flip direction): date / downloads / tracks / name / author; Saved additionally sorts by **% completed**, saved date, name, tracks, source.
+- **Single unified catalog**: the whole community collection (~3 200 packs) lives in `data/packs/` as `<id>.mrg` with dense numeric ids; metadata comes from `data/packs_catalog.json`. The former per-source catalogs (gdmod / GDTR) were merged into it — rebuilds are done with the tools in `tools/` (`packs_3k_compare.py` → `build_packs.py` → `validate_packs.py`).
+- **Pack gallery** (DOM overlay, mouse-driven): tabs — **Catalog**, **Saved**, **Custom** — with client-side paging (50/page) over the full local catalog.
+- **Custom tab**: your own `.mrg` packs — import by button or drag-and-drop (author is read from the `Author - Name.mrg` file-name convention), cards with per-league progress bars and ⚠ flags like Saved, click to play, ✎ Edit opens the pack in the Level editor, delete (✕) soft or with progress. Cards show name, author and levels (`a/b/c`); the active pack has a green border, a fully completed one blue, an «impossible»-flagged one red. A soft-deleted pack that was completed keeps its blue border (completion lives in the records, not in the download), and a completed pack can not be flagged «impossible».
+- **Auto-flagged broken packs**: `data/packs_broken.json` marks packs that don't parse or contain unrenderable tracks. They get the red «impossible» state and obey **Hide impossible** like a manual flag — but an auto-flag can not be toggled off in the UI; it disappears only when the pack is fixed and the report regenerated.
+- **Sorting** is a row of toggle buttons (click to activate, click again to flip direction): tracks / name / author on Catalog (author is case-insensitive, packs without an author sort last); **% completed** / saved date / name / tracks on Saved; name / tracks / added on Custom. There is deliberately no date / downloads / source sort — the collection metadata doesn't carry them.
 - **Search** by name works in every tab.
-- **Visibility toggles** on every tab: **Hide downloaded**, **Hide 100%** and **Hide impossible** (hidden packs are filtered out before paging — not pinned to any page). The current pack is never hidden: it stays visible at its sorted position while it is loaded.
+- **Visibility toggles** on every tab: **Hide downloaded**, **Hide 100%** and **Hide impossible** (on by default; hidden packs are filtered out before paging — not pinned to any page). The current pack is never hidden: it stays visible at its sorted position while it is loaded.
 - **"Impossible" flag** (⚠, hover): marks a pack with a red border — click does not load the pack, state persists (`gd-pack-flags`).
 - **🎲 Random** (catalog tabs): jumps to a random pack and flashes it. The draw excludes downloaded, «impossible» and fully completed packs and respects the current search — a quick way to surface something new worth playing.
 - **Delete from Saved** (✕, hover): «Delete pack» keeps records (progress restores on re-download); «Delete with progress» also wipes the pack's record stores and progress — mirroring the in-game *Clear highscore* (RecordStore cache evicted, in-memory unlock state reset, deleted current pack falls back to Original levels).
@@ -72,16 +89,15 @@ Everything the game needs is static content next to `index.html`:
 
 ```
 data/
-  packs_gdmod.json        catalog metadata (schema 1; from tools/sync_gdmod.py)
-  packs_gdtr.json
+  packs_catalog.json      catalog metadata: id / name / author / levels per pack
+  packs_broken.json       auto-flags for broken packs
+  packs/<id>.mrg          level pack binaries — dense numeric ids
   skins.json
-  packs_gdmod/<id>.mrg    level pack binaries — strict names after rename_packs.py
-  packs_gdtr/<id>.mrg
   skins/<id>.zip          skin archives (names already strict)
   thumbs/<id>.<ext>       skin thumbnails + thumbs.json manifest {"thumbs": {"<id>": "<file>"}}
 ```
 
-Loading is lazy: catalog JSONs on first gallery open, a pack file on its first download, a skin file on its first download. Thumbnails are plain files fetched on demand — no archives involved at runtime at all.
+Loading is lazy: the catalog on first gallery open, a pack file on its first download, a skin file on its first download. Thumbnails are plain files fetched on demand — no archives involved at runtime at all. The collection itself is (re)built offline.
 
 ## Visual customization
 
@@ -103,10 +119,12 @@ Everything is stored in the browser, **per origin** (`scheme + host + port`):
 
 | Storage | Contents |
 |---|---|
-| `localStorage` | per-track records (`p<id>_*` record stores), per-pack progress/selection (`gd-progress-*`), pack flags (`gd-pack-flags`), visual presets (`gd-visual-presets`) and the preset undo slot (`gd-visual-last`), last active pack/skin, visual settings (`gd-visual`), game settings |
+| `localStorage` | per-track records (`p<id>_*` record stores), per-pack progress/selection (`gd-progress-*`), pack flags (`gd-pack-flags`), visual presets (`gd-visual-presets`) and the preset undo slot (`gd-visual-last`), last active pack/skin, visual settings (`gd-visual`), game settings, schema version (`gd-schema-version`) |
 | `IndexedDB` | downloaded and custom level packs (`GravityDefiedPacks`), downloaded skins and background image (`gdvisual`), editor drafts (`gd-editor`) |
 
 Clearing site data wipes all progress, records and downloaded content.
+
+**Schema migrations**: `gd-schema-version` guards one-time data wipes. Version 1 (catalog rebuild onto the unified collection) removed every id-bound key except the built-in pack (id 0 — its records and progress survive) and custom packs (ids ≥ 2 000 000); bumping the constant in `src/SchemaMigrate.js` is the mechanism for future breaking changes.
 
 ## Changes from upstream
 
