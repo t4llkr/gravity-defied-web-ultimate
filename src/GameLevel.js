@@ -306,7 +306,7 @@ class GameLevel {
     }
   }
 
-  renderTrackNearestGreenLine(gameCanvas, lineRGB = null) {
+  renderTrackNearestGreenLine(gameCanvas, lineRGB = null, skipLine = false) {
     const restoreRGB = lineRGB || VisualSettings.lineRGB();
     let pointNo = 0;
     for (pointNo = 0; pointNo < this.pointsCount - 1 && this.pointPositions[pointNo][0] <= this.minX; ++pointNo) {
@@ -315,12 +315,14 @@ class GameLevel {
       --pointNo;
     }
     while (pointNo < this.pointsCount - 1) {
-      gameCanvas.drawLine(
-        this.pointPositions[pointNo][0] << 3 >> 16,
-        this.pointPositions[pointNo][1] << 3 >> 16,
-        this.pointPositions[pointNo + 1][0] << 3 >> 16,
-        this.pointPositions[pointNo + 1][1] << 3 >> 16
-      );
+      if (!skipLine) {
+        gameCanvas.drawLine(
+          this.pointPositions[pointNo][0] << 3 >> 16,
+          this.pointPositions[pointNo][1] << 3 >> 16,
+          this.pointPositions[pointNo + 1][0] << 3 >> 16,
+          this.pointPositions[pointNo + 1][1] << 3 >> 16
+        );
+      }
       if (this.startFlagPoint === pointNo) {
         gameCanvas.renderStartFlag(
           this.pointPositions[this.startFlagPoint][0] << 3 >> 16,

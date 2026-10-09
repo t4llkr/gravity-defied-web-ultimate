@@ -180,17 +180,16 @@ class LevelLoader {
     if (this.gameLevel === null) {
       return;
     }
-    // скрытие линий (при fill) убирает и поверхность — иначе остаётся
-    // «тёмная линия трассы» поверх заливки
-    if (LevelLoader.isEnabledPerspective
-        && VisualSettings.settings.hideLines === true
-        && VisualSettings.settings.fillEnabled === true) {
-      return;
-    }
+    // hide lines (при fill): гасим только саму линию поверхности, а флажки
+    // рисуем всегда — иначе при перспективе на старте/финише остаётся
+    // один флажок вместо двух (второй рисует 3D-проход)
+    const skipLine = LevelLoader.isEnabledPerspective
+      && VisualSettings.settings.hideLines === true
+      && VisualSettings.settings.fillEnabled === true;
     // линия поверхности — основной цвет линий (в обоих режимах)
     const rgb = VisualSettings.lineRGB();
     canvas.setColor(...rgb);
-    this.gameLevel.renderTrackNearestGreenLine(canvas, rgb);
+    this.gameLevel.renderTrackNearestGreenLine(canvas, rgb, skipLine);
   }
   updateVisiblePointRange(var1, var2, var3) {
     if (this.gameLevel === null) {
