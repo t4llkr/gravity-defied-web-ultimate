@@ -91,6 +91,87 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
   const issues = document.createElement("div");
   issues.style.cssText = "color:#f88;font-size:12px;white-space:pre-wrap;";
 
+    // ---- модал переименования с валидацией имени трека ----
+  // формат .mrg: 39 символов + NUL, байты маскируются & 0x7F — всё вне
+  // ASCII 0x01–0x7F при сохранении искажается, поэтому подсвечиваем заранее
+  const openRenameModal = (tr) => {
+    const box = document.createElement("div");
+    box.style.cssText = "position:fixed;inset:0;z-index:700;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;";
+    const cardEl = document.createElement("div");
+    cardEl.style.cssText = "background:#1d1f24;border:1px solid #444;border-radius:10px;padding:16px 18px;width:340px;display:flex;flex-direction:column;gap:8px;";
+    const title = document.createElement("div");
+    title.textContent = "Rename track";
+    title.style.cssText = "color:#eee;font-size:14px;font-weight:bold;";
+    const input = document.createElement("input");
+    input.value = tr.name || "";
+    input.style.cssText = "background:#17191d;border:1px solid #3a3d45;color:#eee;padding:6px;border-radius:6px;width:100%;box-sizing:border-box;";
+    const counter = document.createElement("div");
+    counter.style.cssText = "font-size:11px;color:#889;text-align:right;";
+    const warn = document.createElement("div");
+    warn.style.cssText = "font-size:11px;color:#f88;";
+    const btnRow = document.createElement("div");
+    btnRow.style.cssText = "display:flex;gap:8px;justify-content:flex-end;margin-top:4px;";
+    const validate = () => {
+      let v = input.value;
+      if (v.length > 39) { // хранилище: 39 символов + NUL
+        v = v.slice(0, 39);
+        input.value = v;
+      }
+      counter.textContent = v.length + "/39";
+      let badCount = 0;
+      for (let i = 0; i < v.length; i++) {
+        const code = v.charCodeAt(i);
+        if (code < 1 || code > 127) {
+          badCount += 1;
+        }
+      }
+      if (badCount) {
+        warn.style.display = "";
+        warn.textContent = badCount + " character(s) outside the allowed ASCII range — they will be mangled on save";
+        input.style.borderColor = "#a55";
+      } else {
+        warn.style.display = "none";
+        input.style.borderColor = "#3a3d45";
+      }
+    };
+    input.oninput = validate;
+    input.onkeydown = (e) => {
+      e.stopPropagation(); // не давим хоткеи редактора
+      if (e.key === "Enter") {
+        e.preventDefault();
+        okBtn.click();
+      }
+    };
+    validate();
+    const okBtn = document.createElement("button");
+    okBtn.textContent = "OK";
+    okBtn.style.cssText = btnCss;
+    okBtn.onclick = () => {
+      const v = input.value.trim();
+      if (v) {
+        tr.name = v;
+        rebuildTrackList();
+        refresh();
+      }
+      box.remove();
+    };
+    const cancelBtn = document.createElement("button");
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.style.cssText = btnCss;
+    cancelBtn.onclick = () => box.remove();
+    btnRow.append(cancelBtn, okBtn);
+    cardEl.append(title, input, counter, warn, btnRow);
+    box.appendChild(cardEl);
+    box.onclick = (e) => {
+      if (e.target === box) {
+        box.remove();
+      }
+    };
+    overlay.appendChild(box);
+    input.focus();
+    input.select();
+  };
+
   // перенос трека: (sl,si) -> вставка перед позицией (tl,ti); ti === -1 = в конец лиги
   const moveTrack = (sl, si, tl, ti) => {
     if (sl === tl && (si === ti || si === ti - 1)) {
@@ -159,13 +240,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
           return o;
         };
         rowEl.appendChild(op("✎", "Rename track", () => {
-          const name = window.prompt("Track name:", tr.name || "");
-          if (name === null) {
-            return;
-          }
-          tr.name = name.trim() || tr.name;
-          rebuildTrackList();
-          refresh();
+          openRenameModal(tr);
         }));
         rowEl.appendChild(op("⧉", "Duplicate track", () => {
           const copy = JSON.parse(JSON.stringify(tr));
