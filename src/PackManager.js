@@ -8,8 +8,6 @@ import { MRGCache } from "./MRGCache.js";
 import { LocalArchive } from "./LocalArchive.js";
 import { fetchPackFile } from "./LocalFiles.js";
 
-export const GDTR_OFFSET = 1000000;
-export const PACK_SOURCES = { gdmod: "gdmod", gdtr: "GDTR" };
 
 export function formatBytes(n) {
   if (n == null || isNaN(n)) {
@@ -44,25 +42,22 @@ export function normalizeDate(s) {
 }
 
 // Каждый тип — в обе стороны. progress_* считается в PackGallery (нужен доступ к рекордам).
+// оба направления на ключ: кнопки в галерее переключают asc/desc циклом
+const authorCmp = (a, b) => {
+  const A = (a.author || "").toLowerCase();
+  const B = (b.author || "").toLowerCase();
+  if (!A && !B) return 0;
+  if (!A) return 1; // без автора — в конец
+  if (!B) return -1;
+  return A.localeCompare(B) || (a.name || "").localeCompare(b.name || "");
+};
 const SORTS = {
-  date_desc: (a, b) => (b.addedTs ?? -1) - (a.addedTs ?? -1),
-  date_asc: (a, b) => (a.addedTs ?? Infinity) - (b.addedTs ?? Infinity),
-  name_desc: (a, b) => (b.name || "").localeCompare(a.name || ""),
+  tracks_desc: (a, b) => (b.tracksTotal ?? 0) - (a.tracksTotal ?? 0),
+  tracks_asc: (a, b) => (a.tracksTotal ?? 0) - (b.tracksTotal ?? 0),
   name_asc: (a, b) => (a.name || "").localeCompare(b.name || ""),
-  author_desc: (a, b) => (b.author || "").localeCompare(a.author || ""),
-  author_asc: (a, b) => (a.author || "").localeCompare(b.author || ""),
-  tracks_desc: (a, b) => (b.tracksTotal || 0) - (a.tracksTotal || 0),
-  tracks_asc: (a, b) => (a.tracksTotal || 0) - (b.tracksTotal || 0),
-  downloads_desc: (a, b) => (b.downloads ?? -1) - (a.downloads ?? -1),
-  downloads_asc: (a, b) => (a.downloads ?? -1) - (b.downloads ?? -1),
-  originality_desc: (a, b) => (b.originality ?? -1) - (a.originality ?? -1),
-  originality_asc: (a, b) => (a.originality ?? -1) - (b.originality ?? -1),
-  size_desc: (a, b) => (b.mrgBytes || 0) - (a.mrgBytes || 0),
-  size_asc: (a, b) => (a.mrgBytes || 0) - (b.mrgBytes || 0),
-  saved_desc: (a, b) => (b.savedAt || 0) - (a.savedAt || 0),
-  saved_asc: (a, b) => (a.savedAt || 0) - (b.savedAt || 0),
-  source_desc: (a, b) => ((b.source || "") + (b.name || "")).localeCompare((a.source || "") + (a.name || "")),
-  source_asc: (a, b) => ((a.source || "") + (a.name || "")).localeCompare((b.source || "") + (b.name || "")),
+  name_desc: (a, b) => (b.name || "").localeCompare(a.name || ""),
+  author_asc: (a, b) => authorCmp(a, b),
+  author_desc: (a, b) => authorCmp(b, a),
 };
 
 // Прогресс по сложностям: сколько треков пройдено. Имя хранилища рекорда —
@@ -106,10 +101,11 @@ export class PackManager {
   constructor() {
     this.cache = new MRGCache();
     this.archives = {
-      gdmod: LocalArchive.packs("gdmod"),
-      gdtr: LocalArchive.packs("gdtr"),
-      merged: new LocalArchive("packs_merged", { byPrefix: true }),
+      merged: new LocalArchive("packs_catalog", { byPrefix: true }),
     };
+    // авто-флаги "невозможный" из packs_broken.json (bad + flagged);
+    // в данных каталога, не в localStorage — снять нельзя до фикса пака
+    this.brokenAuto = new Set();
     this._catalogs = {};
     // Поля окна каталога для PackMenu: раньше оценка с сервера, теперь честные —
     // весь локальный каталог известен сразу.
@@ -124,58 +120,67 @@ export class PackManager {
     await this.cache.open();
   }
 
-  static keyIdOf(source, id) {
-    return source === "gdtr" ? GDTR_OFFSET + Number(id) : Number(id);
+  static keyIdOf(_source, id) {
+    return Number(id);
   }
-  static sourceOf(keyId) {
-    return Number(keyId) >= GDTR_OFFSET ? "gdtr" : "gdmod";
+  static sourceOf() {
+    return "packs";
   }
   static srcIdOf(keyId) {
-    const n = Number(keyId);
-    return n >= GDTR_OFFSET ? n - GDTR_OFFSET : n;
+    return Number(keyId);
   }
 
   // ---- метаданные каталогов ----
-  async _catalog(source) {
-    if (!this._catalogs[source]) {
-      const data = await this.archives[source].json();
-      const list = data.items
-        .filter((it) => it.hasMrg !== false && it.mrgSize != null)
-        .map((it) => this._normalize(it.source ?? source, it));
-      list.sort(SORTS.date_desc);
-      this._catalogs[source] = list;
-      if (source === "gdmod") {
-        // окно PackMenu: весь каталог известен
-        this.windowStart = 0;
-        this.windowItems = list;
-        this.shortConfirmed = true;
-      }
-    }
-    return this._catalogs[source];
+  isAutoFlagged(id) {
+    return this.brokenAuto.has(Number(id));
   }
-  _normalize(source, it) {
-    const unesc = (s) => (typeof s === "string" ? s.replace(/&\w+;|&#\d+;/g, (m) => {
-      const d = document.createElement("div");
-      d.innerHTML = m;
-      return d.textContent;
-    }) : s);
-    const breakdown = Array.isArray(it.levelsBreakdown) ? it.levelsBreakdown : [0, 0, 0];
+
+  async _catalog(_source) {
+    if (!this._catalogs.merged) {
+      const data = await this.archives.merged.json();
+      const list = (data.items || [])
+        .filter((it) => it && it.hasMrg !== false)
+        .map((it) => this._normalize("packs", it));
+      this._catalogs.merged = list;
+      // напрямую: LocalArchive.json() требует items, а тут {meta, bad, flagged}
+      try {
+        const r = await fetch("data/packs_broken.json");
+        if (r.ok) {
+          const broken = await r.json();
+          this.brokenAuto = new Set([
+            ...(broken.bad || []).map((p) => Number(p.id)),
+            ...(broken.flagged || []).map((p) => Number(p.id)),
+          ]);
+        }
+      } catch {
+      }
+      if (!this.brokenAuto) {
+        this.brokenAuto = new Set(); // файла нет — авто-флагов нет
+      }
+      // окно PackMenu: весь локальный каталог известен сразу
+      this.windowStart = 0;
+      this.windowItems = list;
+      this.shortConfirmed = true;
+    }
+    return this._catalogs.merged;
+  }
+  _normalize(_source, it) {
+    const breakdown = Array.isArray(it.levelsBreakdown) && it.levelsBreakdown.length === 3 ? it.levelsBreakdown : [0, 0, 0];
     return {
-      id: PackManager.keyIdOf(source, it.id),
+      id: Number(it.id),
       srcId: Number(it.id),
-      source,
-      name: unesc(it.name) ?? "Pack " + it.id,
-      author: unesc(it.author) ?? "",
-      authorId: it.authorId ?? null,
+      source: "packs",
+      name: it.name ?? "Pack " + it.id,
+      author: it.author ?? "",
       levels: breakdown.join("/"),
       levelsBreakdown: breakdown,
-      tracksTotal: it.tracks ?? breakdown.reduce((s, n) => s + n, 0),
-      mrgBytes: it.mrgSize ?? null,
-      mrgSize: formatBytes(it.mrgSize),
-      downloads: it.downloads ?? null,
-      originality: it.originality ?? null,
-      addedRaw: it.added ?? null,
-      addedTs: normalizeDate(it.added),
+      tracksTotal: it.tracksTotal ?? breakdown.reduce((s, n) => s + n, 0),
+      mrgBytes: null,
+      mrgSize: "",
+      downloads: null,
+      originality: null,
+      addedRaw: null,
+      addedTs: null,
       hasMrg: true,
       hasGdlvl: false,
     };
@@ -187,7 +192,7 @@ export class PackManager {
   // ---- выборка для PackGallery: сортировка на полном массиве, потом страница ----
   async catalogPage(source, uiPage, uiPerPage, { sort = "date_desc", hideDownloaded = false, hideCompleted = false, hideImpossible = false, currentId = null, query = "" } = {}) {
     const all = await this._catalog(source);
-    const cmp = SORTS[sort] || SORTS.date_desc;
+    const cmp = SORTS[sort] || SORTS.tracks_desc;
     const q = query.trim().toLowerCase();
     let flags = {};
     try {
@@ -209,7 +214,8 @@ export class PackManager {
       if (!isCurrent && hideCompleted && doneAll) {
         continue;
       }
-      if (!isCurrent && hideImpossible && flags[it.id]) {
+      // ручной флаг ИЛИ авто-флаг из packs_broken.json
+      if (!isCurrent && hideImpossible && (flags[it.id] || this.isAutoFlagged(it.id))) {
         continue;
       }
       if (q && !(it.name || "").toLowerCase().includes(q)) {
@@ -277,7 +283,7 @@ export class PackManager {
   // кандидат рандома им не подвержен по построению)
   async packPageById(source, id, sort, query, perPage) {
     const all = await this._catalog(source);
-    const cmp = SORTS[sort] || SORTS.date_desc;
+    const cmp = SORTS[sort] || SORTS.tracks_desc;
     const q = query.trim().toLowerCase();
     const list = all.filter((it) => !q || (it.name || "").toLowerCase().includes(q)).sort(cmp);
     const idx = list.findIndex((it) => it.id === id);
@@ -297,7 +303,7 @@ export class PackManager {
     const byId = new Map(merged.map((c) => [c.id, c]));
     const out = [];
     for (const meta of metas) {
-      const source = PackManager.sourceOf(meta.id);
+      const source = "packs";
       let extra = { mrgBytes: null, addedTs: null, addedRaw: null };
       const it = byId.get(meta.id);
       if (it) {
@@ -318,8 +324,8 @@ export class PackManager {
     if (!entry) {
       throw new Error("Pack not in catalog: " + source + "/" + srcId);
     }
-    // файл пака: data/packs_<source>/<id>.mrg (строгое имя, манифест не нужен)
-    const blob = await fetchPackFile(source, srcId);
+    // файл пака: data/packs/<id>.mrg (строгое имя, манифест не нужен)
+    const blob = await fetchPackFile(srcId);
     const buffer = await blob.arrayBuffer();
     const metadata = {
       id: Number(id),
@@ -328,8 +334,6 @@ export class PackManager {
       levels: entry.levels,
       levelsBreakdown: entry.levelsBreakdown,
       tracksTotal: entry.tracksTotal,
-      mrgSize: entry.mrgSize,
-      mrgBytes: entry.mrgBytes,
       savedAt: Date.now(),
     };
     await this.cache.savePack(Number(id), buffer, metadata);

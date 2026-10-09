@@ -33,9 +33,9 @@ async function fetchFile(url, onProgress) {
   return r.blob();
 }
 
-// source: "gdmod" | "gdtr"
-export function fetchPackFile(source, id, onProgress) {
-  return fetchFile(`${DATA_DIR}packs_${source}/${id}.mrg`, onProgress);
+// единая коллекция паков: data/packs/<id>.mrg
+export function fetchPackFile(id, onProgress) {
+  return fetchFile(`${DATA_DIR}packs/${id}.mrg`, onProgress);
 }
 
 export function fetchSkinFile(id, onProgress) {

@@ -8,10 +8,12 @@ import { SkinCatalog } from "./SkinCatalog.js";
 import { SkinManager } from "./SkinManager.js";
 import { openSkinGallery } from "./SkinGallery.js";
 import { openPackGallery } from "./PackGallery.js";
+import { migrateSchema } from "./SchemaMigrate.js";
 const LEVELS_MRG_URL = new URL("./assets/levels.mrg", import.meta.url).href
 import { TouchControls } from "./TouchControls.js";
 
 async function startGravityDefiedApp(root) {
+  await migrateSchema(); // до любой инициализации, читающей прогресс/паки
   VisualSettings.load();
   void VisualSettings.loadBgImageFromStorage();
   root.className = "app-root";

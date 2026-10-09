@@ -1,7 +1,7 @@
 // Галерея левелпаков: вкладки gdmods / GDTR / Saved. Полностью локально —
 // метаданные из data/*.json, файлы из data/*.zip (LocalArchive через PackManager).
 // Синяя рамка карточки = 100% прохождения (все треки пройдены по рекордам).
-import { PACK_SOURCES, countCompletedPerDifficulty } from "./PackManager.js";
+import { countCompletedPerDifficulty } from "./PackManager.js";
 import { parsePack, parseMrgFilename } from "./TrackCodec.js";
 import { isCustomId, customList, customGet, customPut, customDelete } from "./CustomStore.js";
 import { openEditorOverlay } from "./editor/EditorOverlay.js";
@@ -68,6 +68,12 @@ export function openPackGallery(menuManager, packMenu) {
   if (uiState.tab === "gdtr") {
     uiState.tab = "gdmods";
   }
+  // "Hide impossible" по умолчанию включён; явно выставленное юзером не трогаем
+  for (const t of ["gdmods", "custom", "saved"]) {
+    if (uiState.hideImp[t] === undefined) {
+      uiState.hideImp[t] = true;
+    }
+  }
   const saveUiState = () => {
     try {
       window.localStorage.setItem(UI_KEY, JSON.stringify(uiState));
@@ -78,18 +84,17 @@ export function openPackGallery(menuManager, packMenu) {
   // [ключ, подпись, направление по умолчанию] — направление переключается кликом
   const SORT_TYPES = {
     gdmods: [
-      ["date", "Date", "desc"], ["downloads", "Downloads", "desc"], ["tracks", "Tracks", "desc"],
-      ["name", "Name", "asc"], ["author", "Author", "asc"], ["source", "Source", "asc"],
+      ["tracks", "Tracks", "desc"], ["name", "Name", "asc"], ["author", "Author", "asc"],
     ],
     saved: [
       ["progress", "% completed", "desc"], ["saved", "Saved date", "desc"],
-      ["name", "Name", "asc"], ["tracks", "Tracks", "desc"], ["source", "Source", "asc"],
+      ["name", "Name", "asc"], ["tracks", "Tracks", "desc"],
     ],
     custom: [
       ["name", "Name", "asc"], ["tracks", "Tracks", "desc"], ["saved", "Added", "desc"],
     ],
   };
-  const DEFAULT_SORT = { gdmods: "date_desc", saved: "progress_desc", custom: "saved_desc" };
+  const DEFAULT_SORT = { gdmods: "tracks_desc", saved: "progress_desc", custom: "saved_desc" };
   const currentSort = () => uiState.sorts[uiState.tab] || DEFAULT_SORT[uiState.tab];
   const currentPage = () => uiState.pages[uiState.tab] || 1;
   const setPage = (p) => { uiState.pages[uiState.tab] = p; saveUiState(); };
@@ -103,7 +108,8 @@ export function openPackGallery(menuManager, packMenu) {
     packFlags = JSON.parse(window.localStorage.getItem(FLAGS_KEY) || "{}");
   } catch {
   }
-  const isFlagged = (id) => !!packFlags[id];
+  // ручной флаг ИЛИ авто-флаг из packs_broken.json (битый пак — до фикса)
+  const isFlagged = (id) => !!packFlags[id] || pm.isAutoFlagged(id);
   const saveFlags = () => {
     try {
       window.localStorage.setItem(FLAGS_KEY, JSON.stringify(packFlags));
@@ -144,7 +150,7 @@ export function openPackGallery(menuManager, packMenu) {
 
   // вкладки
   const tabs = {};
-  for (const [tabId, label] of [["gdmods", "Catalog"], ["custom", "Custom"], ["saved", "Saved"]]) {
+  for (const [tabId, label] of [["gdmods", "Catalog"], ["saved", "Saved"], ["custom", "Custom"]]) {
     const b = document.createElement("button");
     b.textContent = label;
     b.style.cssText = tabCss;
@@ -405,14 +411,19 @@ export function openPackGallery(menuManager, packMenu) {
     if (onFlag) {
       const f = document.createElement("button");
       f.textContent = "⚠";
-      f.title = "Mark as impossible";
+      const auto = pm.isAutoFlagged(onFlag.id); // битый пак: флаг из данных, не тогглится
+      f.title = auto
+        ? "Auto-flagged as impossible (broken pack) — cleared only when the pack is fixed"
+        : "Mark as impossible";
       const active = isFlagged(onFlag.id);
-      f.style.cssText = "position:absolute;top:4px;left:4px;width:20px;height:20px;line-height:1;padding:0;background:" + (active ? "#5a2e2e" : "#22242a") + ";border:1px solid " + (active ? "#a55" : "#444") + ";color:" + (active ? "#f88" : "#999") + ";border-radius:4px;cursor:pointer;font-size:11px;opacity:0;transition:opacity 0.15s;";
+      f.style.cssText = "position:absolute;top:4px;left:4px;width:20px;height:20px;line-height:1;padding:0;background:" + (active ? "#5a2e2e" : "#22242a") + ";border:1px solid " + (active ? "#a55" : "#444") + ";color:" + (active ? "#f88" : "#999") + ";border-radius:4px;cursor:" + (auto ? "default" : "pointer") + ";font-size:11px;opacity:0;transition:opacity 0.15s;";
       t.onmouseenter = () => { f.style.opacity = "1"; };
       t.onmouseleave = () => { f.style.opacity = "0"; };
       f.onclick = (e) => {
         e.stopPropagation();
-        toggleFlag(onFlag.id);
+        if (!auto) {
+          toggleFlag(onFlag.id);
+        }
       };
       t.appendChild(f);
     }
@@ -548,10 +559,7 @@ export function openPackGallery(menuManager, packMenu) {
     if (state === "" && isFlagged(meta.id)) {
       state = "failed";
     }
-    const srcLabel = PACK_SOURCES[meta.source] || meta.source || "";
-    const authorLine = showSource
-      ? [meta.author, srcLabel].filter(Boolean).join(" · ")
-      : (meta.author || PACK_SOURCES[meta.source || "gdmod"]);
+    const authorLine = meta.author || "";
     return card(meta.name, null, authorLine, state, async () => {
       await packMenu.onCachedPackSelected({ id: meta.id, name: meta.name, author: meta.author, levels: "", mrgSize: "", hasGdlvl: false });
       render();
