@@ -591,7 +591,15 @@ class GameCanvas {
       this.menuManager.renderCurrentMenu(g);
       return;
     }
+    // paint-through за панелью пресетов: рисуем кадр «как в игре» — без
+    // менюного приглушения setColor (+128) и со спрайтовыми колёсами.
+    // Флаг снимаем только на время этого кадра и сразу возвращаем.
+    const wasInGameMenu = Micro.isInGameMenu;
+    if (presetsOpen && wasInGameMenu) {
+      Micro.isInGameMenu = false;
+    }
     this.drawGame(g);
+    Micro.isInGameMenu = wasInGameMenu;
   }
   clearActiveInputs() {
     for (let var1 = 0; var1 < 10; ++var1) {
