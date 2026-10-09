@@ -30,7 +30,7 @@ npx serve .
 
 ## Running locally
 
-No build step: serve the repository root with any static file server and open it in a browser. Any equivalent works — VS Code «Live Server», nginx, GitHub Pages, and so on. Opening `index.html` directly via `file://` will **not** work: the game is built from ES modules, which browsers only load over HTTP(S).
+Then open `http://localhost:8000`. Any equivalent works — VS Code «Live Server», nginx, GitHub Pages, and so on. Opening `index.html` directly via `file://` will **not** work: the game is built from ES modules, which browsers only load over HTTP(S).
 
 ## Level packs
 
