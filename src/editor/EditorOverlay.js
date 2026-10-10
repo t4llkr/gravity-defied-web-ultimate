@@ -444,7 +444,12 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
   // ---- T2.1 test drive: полноценный заезд через родной пайплайн игры ----
   let testCtx = null;
   let testWatch = null;
+  let leagueHotkeys = null; // Q/W/E — смена класса мотоцикла на лету
   const endTestDrive = () => {
+    if (leagueHotkeys) {
+      window.removeEventListener("keydown", leagueHotkeys, true);
+      leagueHotkeys = null;
+    }
     if (testWatch) {
       clearInterval(testWatch);
       testWatch = null;
@@ -534,6 +539,21 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       overlay.style.display = "none";
       keysActive = false;
       setInfoToastSuppressed(true);
+      // Q/W/E = 100/175/250сс: смена класса через полный рестарт заезда —
+      // initializeBikeState пересчитает и производные (массы), физика чистая
+      leagueHotkeys = (e) => {
+        const map = { KeyQ: 0, KeyW: 1, KeyE: 2 };
+        const newLeague = map[e.code];
+        if (newLeague === undefined) {
+          return;
+        }
+        e.stopPropagation();
+        mm.settingsStringLeague?.setCurrentOptionPos(newLeague);
+        mm.micro.gamePhysics?.setMotoLeague(newLeague);
+        mm.restartRequested = true; // тот же путь, что у "Restart:" в меню паузы
+        mm.micro.menuToGame();
+      };
+      window.addEventListener("keydown", leagueHotkeys, true);
       testWatch = setInterval(watchTest, 150);
     } catch (e) {
       issues.textContent = "Test drive failed: " + (e && e.message ? e.message : e);
@@ -1202,6 +1222,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       "Ctrl+Shift+drag — add box-selected points to current",
       "Drag a selected point — move whole selection",
       "Delete — remove selected point(s)",
+      "Q / W / E — restart test drive with 100/175/250cc moto class",
       "Ctrl+Z / Ctrl+Y — undo / redo",
       "F — fit track to view",
       "H or ? — this help",
