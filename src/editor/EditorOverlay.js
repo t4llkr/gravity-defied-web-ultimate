@@ -516,11 +516,16 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       // тест-пака закрыты и Start> для medium/hard отклоняется меню)
       const mm = ctx.menuManager;
       mm.availableLeagues = 2; // guard рестарта (taskStart) иначе отклоняет лиги тест-пака
+      // guard рестарта читает КЭШ maxAvailableOption рендера — после setCurrentPack он 0,
+      // поэтому поля availableLeagues мало: выставляем и рендеру, иначе рестарт молча игнорируется
+      mm.settingsStringLeague?.setAvailableOptions(2);
       // селекторы Play-меню в позицию трека — иначе ручной рестарт
       // в заезде читает их дефолты и сбрасывает лигу до 100сс
       mm.settingStringLevel?.setCurrentOptionPos(lg);
       mm.settingsStringTrack?.setCurrentOptionPos(0);
       mm.settingsStringLeague?.setCurrentOptionPos(lg);
+      mm.resumeLevelIndex = lg;   // рестарт (IngameMenu "Restart:") читает их, а не селекторы
+      mm.resumeTrackIndex = 0;
       mm.micro.gamePhysics?.disableGenerateInputAI();
       mm.micro.levelLoader?.loadLevel(lg, 0);
       mm.micro.gamePhysics?.setMotoLeague(lg);
@@ -529,7 +534,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       overlay.style.display = "none";
       keysActive = false;
       setInfoToastSuppressed(true);
-      testWatch = setInterval(watchTest, 400);
+      testWatch = setInterval(watchTest, 150);
     } catch (e) {
       issues.textContent = "Test drive failed: " + (e && e.message ? e.message : e);
       if (testCtx) {
