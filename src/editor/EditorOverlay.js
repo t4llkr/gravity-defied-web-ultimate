@@ -152,6 +152,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
         tr.name = v;
         rebuildTrackList();
         refresh();
+        scheduleSave();
       }
       box.remove();
     };
@@ -192,9 +193,13 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     state.select(tl, ti);
     rebuildTrackList();
     refresh();
+    scheduleSave();
   };
 
   const rebuildTrackList = () => {
+    if (document.activeElement && trackList.contains(document.activeElement)) {
+      document.activeElement.blur(); // иначе фокус удерживает снесённые ноды (orphan-nodes)
+    }
     trackList.innerHTML = "";
     for (let l = 0; l < 3; l++) {
       const hdr = document.createElement("div");
@@ -250,6 +255,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
           fit();
           rebuildTrackList();
           refresh();
+          scheduleSave();
         }));
         rowEl.appendChild(op("✕", "Delete track", () => {
           const total = state.leagues.reduce((s, lg) => s + lg.length, 0);
@@ -264,6 +270,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
           state.select(l, Math.max(0, Math.min(i, state.leagues[l].length - 1)));
           rebuildTrackList();
           refresh();
+          scheduleSave();
         }));
         // drag-and-drop: перетащить трек на строку = вставить перед ней
         rowEl.addEventListener("dragstart", (e) => {
@@ -296,6 +303,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
         fit();
         rebuildTrackList();
         refresh();
+        scheduleSave();
       };
       trackList.appendChild(add);
       // T4.3 шаблоны старта
@@ -312,6 +320,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
           fit();
           rebuildTrackList();
           refresh();
+          scheduleSave();
         };
         return b;
       };
@@ -382,6 +391,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
         state.select(0, 0);
         rebuildTrackList();
         refresh();
+        scheduleSave();
       } catch (e) {
         issues.textContent = "Import failed: " + (e && e.message ? e.message : e);
       }
@@ -417,8 +427,8 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
   const row2 = document.createElement("div");
   row2.style.cssText = "display:flex;gap:6px;justify-content:center;";
   row2.append(
-    mkBtn("Undo", () => { state.undo(); refresh(); }),
-    mkBtn("Redo", () => { state.redo(); refresh(); }),
+    mkBtn("Undo", () => { state.undo(); refresh(); scheduleSave(); }),
+    mkBtn("Redo", () => { state.redo(); refresh(); scheduleSave(); }),
   );
   for (const b of row2.children) {
     b.style.flex = "1";
@@ -906,7 +916,6 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
   minimap.addEventListener("mousedown", onMinimapDown);
 
   const refresh = () => {
-    scheduleSave();
     issues.textContent = state.validate().join("\n");
     rebuildProps();
     draw();
@@ -961,6 +970,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       target.y = ny;
     }
     refresh();
+    scheduleSave();
   };
   pxInput.onchange = commitProp;
   pyInput.onchange = commitProp;
@@ -1080,6 +1090,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
     selIdx = -1;
     selSet = new Set([idx]);
     refresh();
+    scheduleSave();
   };
 
   const onMove = (e) => {
@@ -1145,6 +1156,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       }
     }
     refresh();
+    scheduleSave();
   };
 
   window.addEventListener("mousemove", onMove);
@@ -1291,6 +1303,7 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
         sel = -1;
         selSet.clear();
         refresh();
+        scheduleSave();
       }
       return;
     }
@@ -1298,12 +1311,14 @@ export async function openEditorOverlay(initialLeagues = null, ctx = null, opts 
       selSet.clear();
       state.undo();
       refresh();
+      scheduleSave();
       return;
     }
     if ((e.ctrlKey || e.metaKey) && e.code === "KeyY") {
       selSet.clear();
       state.redo();
       refresh();
+      scheduleSave();
     }
   };
   window.addEventListener("keydown", onKey, true);
