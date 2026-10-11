@@ -139,13 +139,26 @@ export function serializeTrack(track) {
   const pts = track.points;
   w.i16(pts.length);
   for (let i = 0; i < pts.length; i++) {
+    const fx = toFilePoint(pts[i].x);
+    const fy = toFilePoint(pts[i].y);
     if (i === 0) {
-      w.i32(toFilePoint(pts[i].x));
-      w.i32(toFilePoint(pts[i].y));
+      w.i32(fx);
+      w.i32(fy);
     } else {
-      w.i8(-1);
-      w.i32(toFilePoint(pts[i].x));
-      w.i32(toFilePoint(pts[i].y));
+      // дельта-кодирование, как у оригинальных паков (2 байта вместо 9);
+      // dx = -1 зарезервирован под маркер absolute
+      const pfx = toFilePoint(pts[i - 1].x);
+      const pfy = toFilePoint(pts[i - 1].y);
+      const dx = fx - pfx;
+      const dy = fy - pfy;
+      if (dx !== -1 && dx >= -128 && dx <= 127 && dy >= -128 && dy <= 127) {
+        w.i8(dx);
+        w.i8(dy);
+      } else {
+        w.i8(-1);
+        w.i32(fx);
+        w.i32(fy);
+      }
     }
   }
   return w.toBytes();
