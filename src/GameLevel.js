@@ -281,10 +281,19 @@ class GameLevel {
           break;
         }
       }
-      const off = document.createElement("canvas");
-      off.width = gameCanvas.width;
-      off.height = gameCanvas.height2;
+      // офскрин переиспользуется: раньше создавался канвас на весь экран
+      // каждый кадр при движении камеры (canvas 25-40/с, лишний GPU/JS-мусор)
+      let off = this._fillOffscreen;
+      if (!off || off.width !== gameCanvas.width || off.height !== gameCanvas.height2) {
+        if (!off) {
+          off = document.createElement("canvas");
+          this._fillOffscreen = off;
+        }
+        off.width = gameCanvas.width;
+        off.height = gameCanvas.height2;
+      }
       const offCtx = off.getContext("2d");
+      offCtx.clearRect(0, 0, off.width, off.height); // раньше "очисткой" служило создание нового канваса
       if (curtainQuads.length !== 0) {
         const cb = VisualSettings.fillRGB();
         const path = gameCanvas.buildPolygonPath(curtainQuads);

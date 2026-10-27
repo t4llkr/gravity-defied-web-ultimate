@@ -315,14 +315,16 @@ class GameMenu {
       if (i === this.selectedIndex && var4.isNotTextRender() && this.micro.gameCanvas !== null) {
         const var5 = this.xPos - Math.trunc(this.micro.gameCanvas.helmetSpriteWidth / 2);
         const var6 = var2 + Math.trunc(this.font2.getBaselinePosition() / 2) - Math.trunc(this.micro.gameCanvas.helmetSpriteHeight / 2);
-        graphics.setClip(var5, var6, this.micro.gameCanvas.helmetSpriteWidth, this.micro.gameCanvas.helmetSpriteHeight);
-        graphics.drawImage(
+        // source-rect вместо setClip+drawImage: без save/clip/restore на каждый кадр
+        graphics.drawRegion(
           this.micro.gameCanvas.helmetImage,
-          var5 - this.micro.gameCanvas.helmetSpriteWidth * (this.cursorAnimationFrame % 6),
-          var6 - this.micro.gameCanvas.helmetSpriteHeight * Math.trunc(this.cursorAnimationFrame / 6),
+          this.micro.gameCanvas.helmetSpriteWidth * (this.cursorAnimationFrame % 6),
+          this.micro.gameCanvas.helmetSpriteHeight * Math.trunc(this.cursorAnimationFrame / 6),
+          this.micro.gameCanvas.helmetSpriteWidth,
+          this.micro.gameCanvas.helmetSpriteHeight,
+          var5, var6,
           Graphics.LEFT | Graphics.TOP
         );
-        graphics.setClip(0, 0, this.canvasWidth, this.canvasHeight);
         ++this.cursorAnimationFrame;
         if (this.cursorAnimationFrame > 30) {
           this.cursorAnimationFrame = 0;

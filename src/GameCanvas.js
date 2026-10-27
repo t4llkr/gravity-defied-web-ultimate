@@ -190,14 +190,15 @@ class GameCanvas {
     return this.zoom ?? 1;
   }
   drawSprite(g, spriteNo, x, y) {
-    g.setClip(x, y, GameCanvas.spriteSizeX[spriteNo], GameCanvas.spriteSizeY[spriteNo]);
-    g.drawImage(
+    g.drawRegion(
       this.spritesImage,
-      x - GameCanvas.spriteOffsetX[spriteNo],
-      y - GameCanvas.spriteOffsetY[spriteNo],
+      GameCanvas.spriteOffsetX[spriteNo],
+      GameCanvas.spriteOffsetY[spriteNo],
+      GameCanvas.spriteSizeX[spriteNo],
+      GameCanvas.spriteSizeY[spriteNo],
+      x, y,
       Graphics.LEFT | Graphics.TOP
     );
-    g.setClip(0, 0, this.getWidth(), this.getHeight());
   }
   requestRepaint(var1) {
     this.loadingScreenMode = var1;
@@ -307,14 +308,15 @@ class GameCanvas {
     if (this.bodyPartsImages[bodyPartNo] !== null) {
       let drawX = x - Math.trunc(this.bodyPartsSpriteWidth[bodyPartNo] / 2);
       let drawY = y - Math.trunc(this.bodyPartsSpriteHeight[bodyPartNo] / 2);
-      this.graphics.setClip(drawX, drawY, this.bodyPartsSpriteWidth[bodyPartNo], this.bodyPartsSpriteHeight[bodyPartNo]);
-      this.graphics.drawImage(
+      this.graphics.drawRegion(
         this.bodyPartsImages[bodyPartNo],
-        drawX - this.bodyPartsSpriteWidth[bodyPartNo] * (spriteNo % 6),
-        drawY - this.bodyPartsSpriteHeight[bodyPartNo] * Math.trunc(spriteNo / 6),
+        this.bodyPartsSpriteWidth[bodyPartNo] * (spriteNo % 6),
+        this.bodyPartsSpriteHeight[bodyPartNo] * Math.trunc(spriteNo / 6),
+        this.bodyPartsSpriteWidth[bodyPartNo],
+        this.bodyPartsSpriteHeight[bodyPartNo],
+        drawX, drawY,
         Graphics.LEFT | Graphics.TOP
       );
-      this.graphics.setClip(0, 0, this.width, this.getHeight());
       drawX = drawX;
       drawY = drawY;
     }
@@ -348,14 +350,15 @@ class GameCanvas {
     const var4 = this.calcSpriteNo(angleF16, -102943, 411774, 32, true);
     const var5 = this.addDx(x) - Math.trunc(this.helmetSpriteWidth / 2);
     const var6 = this.addDy(y) - Math.trunc(this.helmetSpriteHeight / 2);
-    this.graphics.setClip(var5, var6, this.helmetSpriteWidth, this.helmetSpriteHeight);
-    this.graphics.drawImage(
+    this.graphics.drawRegion(
       this.helmetImage,
-      var5 - this.helmetSpriteWidth * (var4 % 6),
-      var6 - this.helmetSpriteHeight * Math.trunc(var4 / 6),
+      this.helmetSpriteWidth * (var4 % 6),
+      this.helmetSpriteHeight * Math.trunc(var4 / 6),
+      this.helmetSpriteWidth,
+      this.helmetSpriteHeight,
+      var5, var6,
       Graphics.LEFT | Graphics.TOP
     );
-    this.graphics.setClip(0, 0, this.width, this.getHeight());
   }
   drawTime(time10Ms) {
     const seconds = Math.trunc(time10Ms / 100);
@@ -433,14 +436,15 @@ class GameCanvas {
     const spriteNo = this.calcSpriteNo(angleF16, -247063, 411774, 32, true);
     const centerX = this.addDx(x) - Math.trunc(this.engineSpriteWidth / 2);
     const centerY = this.addDy(y) - Math.trunc(this.engineSpriteHeight / 2);
-    this.graphics.setClip(centerX, centerY, this.engineSpriteWidth, this.engineSpriteHeight);
-    this.graphics.drawImage(
+    this.graphics.drawRegion(
       this.engineImage,
-      centerX - this.engineSpriteWidth * (spriteNo % 6),
-      centerY - this.engineSpriteHeight * Math.trunc(spriteNo / 6),
+      this.engineSpriteWidth * (spriteNo % 6),
+      this.engineSpriteHeight * Math.trunc(spriteNo / 6),
+      this.engineSpriteWidth,
+      this.engineSpriteHeight,
+      centerX, centerY,
       Graphics.LEFT | Graphics.TOP
     );
-    this.graphics.setClip(0, 0, this.width, this.getHeight());
   }
   renderFender(x, y, angleF16) {
     if (this.fenderImage === null) {
@@ -449,14 +453,15 @@ class GameCanvas {
     const spriteNo = this.calcSpriteNo(angleF16, -185297, 411774, 32, true);
     const centerX = this.addDx(x) - Math.trunc(this.fenderSpriteWidth / 2);
     const centerY = this.addDy(y) - Math.trunc(this.fenderSpriteHeight / 2);
-    this.graphics.setClip(centerX, centerY, this.fenderSpriteWidth, this.fenderSpriteHeight);
-    this.graphics.drawImage(
+    this.graphics.drawRegion(
       this.fenderImage,
-      centerX - this.fenderSpriteWidth * (spriteNo % 6),
-      centerY - this.fenderSpriteHeight * Math.trunc(spriteNo / 6),
+      this.fenderSpriteWidth * (spriteNo % 6),
+      this.fenderSpriteHeight * Math.trunc(spriteNo / 6),
+      this.fenderSpriteWidth,
+      this.fenderSpriteHeight,
+      centerX, centerY,
       Graphics.LEFT | Graphics.TOP
     );
-    this.graphics.setClip(0, 0, this.width, this.getHeight());
   }
   clearScreenWithWhite() {
     let img = VisualSettings.settings.showBgImage ? VisualSettings.bgImage : null;

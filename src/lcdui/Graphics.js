@@ -79,6 +79,11 @@ class Graphics {
       }
     });
   }
+  // прямой блит готового канваса (офскрин-кэши растровых замощений и т.п.)
+  drawCanvas(canvas, x, y) {
+    this.ctx.drawImage(canvas, x, y);
+  }
+
   drawImage(image, x, y, anchor) {
     const width = image.getWidth();
     const height = image.getHeight();
@@ -88,8 +93,29 @@ class Graphics {
       this.ctx.drawImage(image.getElement(), drawX, drawY);
     });
   }
+
+  // source-rect вариант (J2ME drawRegion): кадр спрайта из листа БЕЗ ctx.clip —
+  // паттерн save+clip+restore на каждый спрайт душил Chrome (рост памяти
+  // вне V8-хипа).
+  drawRegion(image, sx, sy, w, h, x, y, anchor) {
+    const drawX = Graphics.getAnchorX(x, w, anchor);
+    const drawY = Graphics.getAnchorY(y, h, anchor);
+    this.withClip(() => {
+      this.ctx.drawImage(image.getElement(), sx, sy, w, h, drawX, drawY, w, h);
+    });
+  }
   withClip(draw) {
     if (this.clipRect === null) {
+      draw();
+      return;
+    }
+    // быстрый путь: клип покрывает весь канвас — семантический no-op.
+    // Без него каждый примитив меню (~950/кадр) идёт через save+clip+restore,
+    // и Chrome копит ресурсы вне V8-хипа (+100-200 МБ/с, скрыто от снапшотов).
+    const cv = this.ctx.canvas;
+    if (this.clipRect.x <= 0 && this.clipRect.y <= 0 &&
+        this.clipRect.x + this.clipRect.w >= cv.width &&
+        this.clipRect.y + this.clipRect.h >= cv.height) {
       draw();
       return;
     }

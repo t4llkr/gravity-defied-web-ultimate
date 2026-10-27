@@ -683,14 +683,29 @@ class MenuManager {
     }
     const rasterHeight = this.rasterImage.getHeight();
     const rasterWidth = this.rasterImage.getWidth();
-    if (rasterHeight <= 0 || rasterWidth <= 0) {
+    const canvasWidth = this.getCanvasWidth();
+    const canvasHeight = this.getCanvasHeight();
+    if (rasterHeight <= 0 || rasterWidth <= 0 || canvasWidth <= 0 || canvasHeight <= 0) {
       return;
     }
-    for (let y = 0; y < this.getCanvasHeight(); y += rasterHeight) {
-      for (let x = 0; x < this.getCanvasWidth(); x += rasterWidth) {
-        graphics.drawImage(this.rasterImage, x, y, Graphics.LEFT | Graphics.TOP);
+    // замощение кэшируется в офскрин-канвас: тайлинг один раз на смену
+    // размера/образа вместо ~180 drawImage на КАЖДЫЙ репейнт меню (~11k/с)
+    const cache = this.rasterCache;
+    if (!cache || cache.src !== this.rasterImage ||
+        cache.width !== canvasWidth || cache.height !== canvasHeight) {
+      const off = document.createElement("canvas");
+      off.width = canvasWidth;
+      off.height = canvasHeight;
+      const octx = off.getContext("2d");
+      const el = this.rasterImage.getElement();
+      for (let y = 0; y < canvasHeight; y += rasterHeight) {
+        for (let x = 0; x < canvasWidth; x += rasterWidth) {
+          octx.drawImage(el, x, y);
+        }
       }
+      this.rasterCache = { canvas: off, src: this.rasterImage, width: canvasWidth, height: canvasHeight };
     }
+    graphics.drawCanvas(this.rasterCache.canvas, 0, 0);
   }
   processKeyCode(keyCode) {
     if (this.currentGameMenu !== null && this.micro.gameCanvas !== null) {
